@@ -29,7 +29,8 @@ class MainActivity : ComponentActivity() {
 
 data class TaskItem(
     val title: String,
-    val completed: Boolean = false
+    val completed: Boolean = false,
+    val reminderTime: Long? = null
 )
 
 @Composable
