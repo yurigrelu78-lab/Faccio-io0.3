@@ -12,12 +12,14 @@ class ReminderReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra("task_title") ?: "Promemoria"
 
         val notification = NotificationCompat.Builder(context, "faccio_io_reminders")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Faccio io")
-            .setContentText(title)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
+    .setSmallIcon(android.R.drawable.ic_dialog_info)
+    .setContentTitle("Faccio io")
+    .setContentText(title)
+    .setPriority(NotificationCompat.PRIORITY_HIGH)
+    .setDefaults(NotificationCompat.DEFAULT_ALL)
+    .setVibrate(longArrayOf(0, 500, 300, 500))
+    .setAutoCancel(true)
+    .build()
 
         NotificationManagerCompat.from(context).notify(
             System.currentTimeMillis().toInt(),
