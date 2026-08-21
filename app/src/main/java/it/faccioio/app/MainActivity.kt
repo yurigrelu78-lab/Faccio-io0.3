@@ -3,7 +3,9 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.Context
-
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.os.Bundle
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
@@ -24,6 +26,21 @@ import androidx.compose.ui.platform.LocalContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    val channel = NotificationChannel(
+        "faccio_io_reminders",
+        "Promemoria",
+        NotificationManager.IMPORTANCE_HIGH
+    ).apply {
+        description = "Promemoria delle attività di Faccio io"
+        enableVibration(true)
+    }
+
+    val notificationManager =
+        getSystemService(NotificationManager::class.java)
+
+    notificationManager.createNotificationChannel(channel)
+        }
 
         setContent {
             MaterialTheme {
