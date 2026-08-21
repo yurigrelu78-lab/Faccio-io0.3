@@ -81,10 +81,10 @@ val context = LocalContext.current
         val calendar = Calendar.getInstance()
 
         DatePickerDialog(
-            Context,
+            context,
             { _, year, month, day ->
                 TimePickerDialog(
-                    Context,
+                    context,
                     { _, hour, minute ->
                         calendar.set(year, month, day, hour, minute, 0)
                         reminderTime = calendar.timeInMillis
