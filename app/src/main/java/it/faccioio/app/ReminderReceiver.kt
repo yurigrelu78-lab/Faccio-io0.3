@@ -11,7 +11,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val title = intent.getStringExtra("task_title") ?: "Promemoria"
 
-        val notification = NotificationCompat.Builder(context, "faccio_io_reminders")
+        val notification = NotificationCompat.Builder(context, "faccio_io_reminders_v2")
     .setSmallIcon(android.R.drawable.ic_dialog_info)
     .setContentTitle("Faccio io")
     .setContentText(title)
