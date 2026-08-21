@@ -30,12 +30,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
     val channel = NotificationChannel(
-        "faccio_io_reminders",
-        "Promemoria",
-        NotificationManager.IMPORTANCE_HIGH
-    ).apply {
-        description = "Promemoria delle attività di Faccio io"
-        enableVibration(true)
+    "faccio_io_reminders_v2",
+    "Promemoria Faccio io",
+    NotificationManager.IMPORTANCE_HIGH
+).apply {
+    description = "Promemoria delle attività di Faccio io"
+
+    enableVibration(true)
+    vibrationPattern = longArrayOf(0, 500, 300, 500)
+
+    val soundUri =
+        android.media.RingtoneManager.getDefaultUri(
+            android.media.RingtoneManager.TYPE_NOTIFICATION
+        )
+
+    val audioAttributes =
+        android.media.AudioAttributes.Builder()
+            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+
+    setSound(soundUri, audioAttributes)
     }
 
     val notificationManager =
