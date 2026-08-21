@@ -208,20 +208,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         selectedReminder,
         pendingIntent
     )
-}
-    } else {
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            selectedReminder,
-            pendingIntent
-        )
-    }
-} else {
-    alarmManager.setExactAndAllowWhileIdle(
-        AlarmManager.RTC_WAKEUP,
-        selectedReminder,
-        pendingIntent
-    )
+
 }
     }
 
