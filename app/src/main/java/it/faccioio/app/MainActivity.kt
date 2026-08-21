@@ -22,7 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
-
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +43,19 @@ class MainActivity : ComponentActivity() {
 
     notificationManager.createNotificationChannel(channel)
         }
-
+if (
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+    ActivityCompat.checkSelfPermission(
+        this,
+        Manifest.permission.POST_NOTIFICATIONS
+    ) != PackageManager.PERMISSION_GRANTED
+) {
+    ActivityCompat.requestPermissions(
+        this,
+        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+        1001
+    )
+}
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
