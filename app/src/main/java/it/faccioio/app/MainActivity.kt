@@ -158,6 +158,14 @@ Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
                 val text = newTask.trim()
+                val testIntent = Intent(
+    context,
+    ReminderReceiver::class.java
+).apply {
+    putExtra("task_title", "TEST PROMEMORIA")
+}
+
+context.sendBroadcast(testIntent)
 
                 if (text.isNotEmpty()) {
 
