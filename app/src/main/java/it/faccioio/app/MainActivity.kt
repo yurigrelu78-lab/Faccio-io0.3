@@ -115,10 +115,51 @@ Spacer(modifier = Modifier.height(8.dp))
                 val text = newTask.trim()
 
                 if (text.isNotEmpty()) {
-                    tasks.add(TaskItem(text, reminderTime = reminderTime))
-                    newTask = ""
-                    reminderTime = null
-                }
+
+    val selectedReminder = reminderTime
+
+    if (
+        selectedReminder != null &&
+        selectedReminder > System.currentTimeMillis()
+    ) {
+        val intent = Intent(
+            context,
+            ReminderReceiver::class.java
+        ).apply {
+            putExtra("task_title", text)
+        }
+
+        val requestCode =
+            (selectedReminder xor text.hashCode().toLong()).hashCode()
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager =
+            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        alarmManager.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            selectedReminder,
+            pendingIntent
+        )
+    }
+
+    tasks.add(
+        TaskItem(
+            text,
+            reminderTime = selectedReminder
+        )
+    )
+
+    newTask = ""
+    reminderTime = null
+}
             },
             modifier = Modifier.fillMaxWidth()
         ) {
