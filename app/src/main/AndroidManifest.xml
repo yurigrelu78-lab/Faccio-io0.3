@@ -6,7 +6,7 @@
         android:allowBackup="true"
         android:label="Faccio io"
         android:supportsRtl="true"
-        android:theme="@style/Theme.FaccioIo>
+        android:theme="@style/Theme.FaccioIo">
         <receiver
     android:name=".ReminderReceiver"
     android:exported="false" />
