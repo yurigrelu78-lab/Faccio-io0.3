@@ -171,14 +171,27 @@ Spacer(modifier = Modifier.height(8.dp))
                 PendingIntent.FLAG_IMMUTABLE
         )
 
-        val alarmManager =
-            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
+        val if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    if (alarmManager.canScheduleExactAlarms()) {
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            selectedReminder,
+            pendingIntent
+        )
+    } else {
         alarmManager.setAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             selectedReminder,
             pendingIntent
         )
+    }
+} else {
+    alarmManager.setExactAndAllowWhileIdle(
+        AlarmManager.RTC_WAKEUP,
+        selectedReminder,
+        pendingIntent
+    )
+}
     }
 
     tasks.add(
