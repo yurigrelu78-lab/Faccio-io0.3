@@ -111,8 +111,9 @@ Spacer(modifier = Modifier.height(8.dp))
                 val text = newTask.trim()
 
                 if (text.isNotEmpty()) {
-                    tasks.add(TaskItem(text))
+                    tasks.add(TaskItem(text, reminderTime = reminderTime))
                     newTask = ""
+                    reminderTime = null
                 }
             },
             modifier = Modifier.fillMaxWidth()
