@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +40,8 @@ data class TaskItem(
 @Composable
 fun FaccioIoApp() {
     var newTask by remember { mutableStateOf("") }
-
+var reminderTime by remember { mutableStateOf<Long?>(null) }
+val context = LocalContext.current
     val tasks = remember {
         mutableStateListOf(
             TaskItem("Controllare gli impegni di oggi"),
@@ -74,6 +76,35 @@ fun FaccioIoApp() {
         )
 
         Spacer(modifier = Modifier.height(12.dp))
+        Button(
+    onClick = {
+        val calendar = Calendar.getInstance()
+
+        DatePickerDialog(
+            Context,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    Context,
+                    { _, hour, minute ->
+                        calendar.set(year, month, day, hour, minute, 0)
+                        reminderTime = calendar.timeInMillis
+                    },
+                    calendar.get(Calendar.HOUR_OF_DAY),
+                    calendar.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    },
+    modifier = Modifier.fillMaxWidth()
+) {
+    Text("Imposta promemoria")
+}
+
+Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {
