@@ -196,28 +196,23 @@ context.sendBroadcast(testIntent)
         val alarmManager =
     context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-    if (alarmManager.canScheduleExactAlarms()) {
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            selectedReminder,
-            pendingIntent
-        )
-    } else {
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            selectedReminder,
-            pendingIntent
-        )
-    }
-} else {
-    alarmManager.setExactAndAllowWhileIdle(
-        AlarmManager.RTC_WAKEUP,
-        selectedReminder,
-        pendingIntent
-    )
+val showIntent = PendingIntent.getActivity(
+    context,
+    requestCode + 1,
+    Intent(context, MainActivity::class.java),
+    PendingIntent.FLAG_UPDATE_CURRENT or
+        PendingIntent.FLAG_IMMUTABLE
+)
 
-}
+val alarmClockInfo = AlarmManager.AlarmClockInfo(
+    selectedReminder,
+    showIntent
+)
+
+alarmManager.setAlarmClock(
+    alarmClockInfo,
+    pendingIntent
+)
     }
 
     tasks.add(
