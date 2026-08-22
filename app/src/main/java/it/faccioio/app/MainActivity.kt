@@ -127,6 +127,7 @@ data class TaskItem(
     val departureSafety: String = "Normale",
     val recurrence: String = "Mai",
     val recurrenceIntervalDays: Int = 1,
+    val recurrenceWeekdays: List<Int> = emptyList(),
     val durationMinutes: Int = 30,
     val routineSteps: List<RoutineStep> = emptyList(),
     val shoppingListEnabled: Boolean = false,
@@ -175,7 +176,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var editedAppointmentTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedRecurrence by rememberSaveable { mutableStateOf("Mai") }
-    var editedRecurrenceDays by rememberSaveable { mutableStateOf("1") }
+    val editedRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var editedDuration by rememberSaveable { mutableStateOf("30 minuti") }
     var editedCustomDuration by rememberSaveable { mutableStateOf("30") }
     var categoryFilter by rememberSaveable { mutableStateOf("Tutte") }
@@ -198,7 +199,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
-    var taskRecurrenceDays by rememberSaveable { mutableStateOf("1") }
+    val taskRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var taskDuration by rememberSaveable { mutableStateOf("30 minuti") }
     var taskCustomDuration by rememberSaveable { mutableStateOf("30") }
     var taskLocationQuery by rememberSaveable { mutableStateOf("") }
@@ -293,7 +294,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         arrivalId: String? = null,
         recurrence: String = "Mai",
         recurrenceDays: Int = 1,
-        durationMinutes: Int = 30
+        durationMinutes: Int = 30,
+        recurrenceWeekdays: List<Int> = emptyList()
     ) {
         tasks.add(
             TaskItem(
@@ -307,6 +309,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 arrivalReminderId = arrivalId,
                 recurrence = recurrence,
                 recurrenceIntervalDays = recurrenceDays,
+                recurrenceWeekdays = recurrenceWeekdays,
                 durationMinutes = durationMinutes,
                 routineSteps = pendingRoutineSteps,
                 shoppingListEnabled = pendingHasShoppingList
@@ -326,7 +329,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         taskReminderMode = "Nessuno"
         taskReminderTime = null
         taskRecurrence = "Mai"
-        taskRecurrenceDays = "1"
+        taskRecurrenceWeekdays.clear()
         taskDuration = "30 minuti"
         taskCustomDuration = "30"
         taskLocationQuery = ""
@@ -539,7 +542,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     taskReminderMode = "Nessuno"
                     taskReminderTime = null
                     taskRecurrence = "Mai"
-                    taskRecurrenceDays = "1"
+                    taskRecurrenceWeekdays.clear()
                     taskDuration = "30 minuti"
                     taskCustomDuration = "30"
                     taskLocationQuery = ""
@@ -812,7 +815,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     editedAppointmentTime = task.appointmentTime
                                     editedReminderTime = task.reminderTime
                                     editedRecurrence = task.recurrence
-                                    editedRecurrenceDays = task.recurrenceIntervalDays.toString()
+                                    editedRecurrenceWeekdays.clear()
+                                    editedRecurrenceWeekdays.addAll(task.recurrenceWeekdays)
                                     editedDuration = durationOption(task.durationMinutes)
                                     editedCustomDuration = task.durationMinutes.toString()
                                 },
@@ -2144,12 +2148,21 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (taskRecurrence == "Personalizzata") {
-                        OutlinedTextField(
-                            value = taskRecurrenceDays,
-                            onValueChange = { taskRecurrenceDays = it.filter(Char::isDigit).take(3) },
-                            label = { Text("Ripeti ogni quanti giorni?") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                        Text(
+                            "Scegli i giorni",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = FaccioNavy
+                        )
+                        WeekdaySelector(
+                            selectedDays = taskRecurrenceWeekdays,
+                            onToggle = { day ->
+                                if (day in taskRecurrenceWeekdays) {
+                                    taskRecurrenceWeekdays.remove(day)
+                                } else {
+                                    taskRecurrenceWeekdays.add(day)
+                                }
+                            }
                         )
                     }
                     DurationSelector(
@@ -2203,13 +2216,13 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         val needsTime = taskReminderMode == "Data e ora" ||
                             taskReminderMode == "Entrambi" || taskRecurrence != "Mai"
                         val needsPlace = taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi"
-                        val recurrenceDays = taskRecurrenceDays.toIntOrNull() ?: 0
+                        val recurrenceDays = 1
                         val durationMinutes = selectedDurationMinutes(taskDuration, taskCustomDuration)
                         if (durationMinutes !in 5..720) {
                             Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show(); return@TextButton
                         }
-                        if (taskRecurrence == "Personalizzata" && recurrenceDays !in 1..365) {
-                            Toast.makeText(context, "Inserisci un intervallo da 1 a 365 giorni", Toast.LENGTH_LONG).show(); return@TextButton
+                        if (taskRecurrence == "Personalizzata" && taskRecurrenceWeekdays.isEmpty()) {
+                            Toast.makeText(context, "Seleziona almeno un giorno della settimana", Toast.LENGTH_LONG).show(); return@TextButton
                         }
                         if (needsTime && (taskReminderTime == null || taskReminderTime!! <= System.currentTimeMillis())) {
                             Toast.makeText(context, "Scegli un orario futuro", Toast.LENGTH_LONG).show(); return@TextButton
@@ -2223,11 +2236,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             if (!ensureLocationPermissions(context)) return@TextButton
                             val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
                             registerArrivalGeofence(context, id, pendingTask, place!!.latitude, place.longitude) { ok ->
-                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays.coerceAtLeast(1), durationMinutes)
+                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays, durationMinutes, taskRecurrenceWeekdays.toList())
                                 else Toast.makeText(context, "Attivazione del luogo non riuscita", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays.coerceAtLeast(1), durationMinutes = durationMinutes)
+                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays, durationMinutes = durationMinutes, recurrenceWeekdays = taskRecurrenceWeekdays.toList())
                         }
                     }
                 ) { Text("Salva attività") }
@@ -2311,12 +2324,21 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             modifier = Modifier.fillMaxWidth()
                         )
                         if (editedRecurrence == "Personalizzata") {
-                            OutlinedTextField(
-                                value = editedRecurrenceDays,
-                                onValueChange = { editedRecurrenceDays = it.filter(Char::isDigit).take(3) },
-                                label = { Text("Ripeti ogni quanti giorni?") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                            Text(
+                                "Scegli i giorni",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            WeekdaySelector(
+                                selectedDays = editedRecurrenceWeekdays,
+                                onToggle = { day ->
+                                    if (day in editedRecurrenceWeekdays) {
+                                        editedRecurrenceWeekdays.remove(day)
+                                    } else {
+                                        editedRecurrenceWeekdays.add(day)
+                                    }
+                                }
                             )
                         }
                         DurationSelector(
@@ -2338,14 +2360,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
-                                val recurrenceDays = editedRecurrenceDays.toIntOrNull() ?: 0
+                                val recurrenceDays = 1
                                 val durationMinutes = selectedDurationMinutes(editedDuration, editedCustomDuration)
                                 if (durationMinutes !in 5..720) {
                                     Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
                                     return@TextButton
                                 }
-                                if (editedRecurrence == "Personalizzata" && recurrenceDays !in 1..365) {
-                                    Toast.makeText(context, "Inserisci un intervallo da 1 a 365 giorni", Toast.LENGTH_LONG).show()
+                                if (editedRecurrence == "Personalizzata" && editedRecurrenceWeekdays.isEmpty()) {
+                                    Toast.makeText(context, "Seleziona almeno un giorno della settimana", Toast.LENGTH_LONG).show()
                                     return@TextButton
                                 }
                                 if (editedRecurrence != "Mai" && editedReminderTime == null && task.appointmentTime == null) {
@@ -2413,7 +2435,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     appointmentTime = newAppointmentTime,
                                     reminderTime = newReminderTime,
                                     recurrence = editedRecurrence,
-                                    recurrenceIntervalDays = recurrenceDays.coerceAtLeast(1),
+                                    recurrenceIntervalDays = recurrenceDays,
+                                    recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
                                     durationMinutes = durationMinutes
                                 )
                                 saveTasks(context, tasks)
@@ -2915,6 +2938,66 @@ private fun formatDuration(minutes: Int): String {
     }
 }
 
+private val WEEKDAYS = listOf(
+    Calendar.MONDAY to "Lun",
+    Calendar.TUESDAY to "Mar",
+    Calendar.WEDNESDAY to "Mer",
+    Calendar.THURSDAY to "Gio",
+    Calendar.FRIDAY to "Ven",
+    Calendar.SATURDAY to "Sab",
+    Calendar.SUNDAY to "Dom"
+)
+
+@Composable
+private fun WeekdaySelector(
+    selectedDays: List<Int>,
+    onToggle: (Int) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            WEEKDAYS.take(4).forEach { (day, label) ->
+                FilterChip(
+                    selected = day in selectedDays,
+                    onClick = { onToggle(day) },
+                    label = { Text(label) },
+                    modifier = Modifier.weight(1f),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = FaccioTeal,
+                        selectedLabelColor = Color.White
+                    )
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            WEEKDAYS.drop(4).forEach { (day, label) ->
+                FilterChip(
+                    selected = day in selectedDays,
+                    onClick = { onToggle(day) },
+                    label = { Text(label) },
+                    modifier = Modifier.weight(1f),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = FaccioTeal,
+                        selectedLabelColor = Color.White
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+private fun weekdayShortName(day: Int): String =
+    WEEKDAYS.firstOrNull { it.first == day }?.second ?: ""
+
+private fun weekdayOrder(day: Int): Int =
+    WEEKDAYS.indexOfFirst { it.first == day }.let { if (it < 0) Int.MAX_VALUE else it }
+
 @Composable
 private fun DurationSelector(
     selected: String,
@@ -2941,7 +3024,11 @@ private fun DurationSelector(
 }
 
 private fun recurrenceLabel(task: TaskItem): String = when (task.recurrence) {
-    "Personalizzata" -> "Si ripete ogni ${task.recurrenceIntervalDays} giorni"
+    "Personalizzata" -> if (task.recurrenceWeekdays.isEmpty()) {
+        "Ripetizione personalizzata"
+    } else {
+        "Si ripete: ${task.recurrenceWeekdays.sortedBy(::weekdayOrder).joinToString(" · ") { weekdayShortName(it) }}"
+    }
     "Mai" -> ""
     else -> "Si ripete: ${task.recurrence.lowercase(Locale.ITALIAN)}"
 }
@@ -3114,7 +3201,15 @@ private fun shiftRecurringTime(time: Long, task: TaskItem): Long =
             "Ogni giorno" -> add(Calendar.DAY_OF_YEAR, 1)
             "Ogni settimana" -> add(Calendar.WEEK_OF_YEAR, 1)
             "Ogni mese" -> add(Calendar.MONTH, 1)
-            "Personalizzata" -> add(Calendar.DAY_OF_YEAR, task.recurrenceIntervalDays.coerceAtLeast(1))
+            "Personalizzata" -> {
+                if (task.recurrenceWeekdays.isEmpty()) {
+                    add(Calendar.DAY_OF_YEAR, task.recurrenceIntervalDays.coerceAtLeast(1))
+                } else {
+                    do {
+                        add(Calendar.DAY_OF_YEAR, 1)
+                    } while (get(Calendar.DAY_OF_WEEK) !in task.recurrenceWeekdays)
+                }
+            }
         }
     }.timeInMillis
 
@@ -3411,6 +3506,11 @@ internal fun parseTasks(
                 departureSafety = item.optString("departureSafety", "Normale"),
                 recurrence = item.optString("recurrence", "Mai"),
                 recurrenceIntervalDays = item.optInt("recurrenceIntervalDays", 1).coerceAtLeast(1),
+                recurrenceWeekdays = item.optJSONArray("recurrenceWeekdays")?.let { days ->
+                    List(days.length()) { dayIndex -> days.optInt(dayIndex) }
+                        .filter { it in Calendar.SUNDAY..Calendar.SATURDAY }
+                        .distinct()
+                }.orEmpty(),
                 durationMinutes = item.optInt("durationMinutes", 30).coerceIn(5, 720),
                 routineSteps = item.optJSONArray("routineSteps")?.let { steps ->
                     List(steps.length()) { stepIndex ->
@@ -3472,6 +3572,7 @@ internal fun serializeTasks(tasks: List<TaskItem>): String {
                 put("departureSafety", task.departureSafety)
                 put("recurrence", task.recurrence)
                 put("recurrenceIntervalDays", task.recurrenceIntervalDays)
+                put("recurrenceWeekdays", JSONArray(task.recurrenceWeekdays))
                 put("durationMinutes", task.durationMinutes)
                 put(
                     "routineSteps",
