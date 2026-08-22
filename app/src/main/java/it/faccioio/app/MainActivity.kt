@@ -156,7 +156,7 @@ val context = LocalContext.current
 Spacer(modifier = Modifier.height(8.dp))
 
         Button(
-            onClick = {
+            onClick = addTask@{
                 val text = newTask.trim()
                 val testIntent = Intent(
     context,
@@ -176,11 +176,46 @@ val testPendingIntent = PendingIntent.getBroadcast(
 val testAlarmManager =
     context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-testAlarmManager.setExactAndAllowWhileIdle(
-    AlarmManager.RTC_WAKEUP,
-    System.currentTimeMillis() + 60_000,
-    testPendingIntent
-)
+if (
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+    !testAlarmManager.canScheduleExactAlarms()
+) {
+    android.widget.Toast.makeText(
+        context,
+        "Autorizza sveglie e promemoria, poi premi di nuovo Aggiungi attività",
+        android.widget.Toast.LENGTH_LONG
+    ).show()
+
+    val permissionIntent = Intent(
+        android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+        android.net.Uri.parse("package:${context.packageName}")
+    )
+
+    try {
+        context.startActivity(permissionIntent)
+    } catch (_: Exception) {
+        context.startActivity(
+            Intent(android.provider.Settings.ACTION_SETTINGS)
+        )
+    }
+
+    return@addTask
+}
+
+try {
+    testAlarmManager.setExactAndAllowWhileIdle(
+        AlarmManager.RTC_WAKEUP,
+        System.currentTimeMillis() + 60_000,
+        testPendingIntent
+    )
+} catch (_: SecurityException) {
+    android.widget.Toast.makeText(
+        context,
+        "Permesso per i promemoria non disponibile",
+        android.widget.Toast.LENGTH_LONG
+    ).show()
+    return@addTask
+}
 
                 if (text.isNotEmpty()) {
 
