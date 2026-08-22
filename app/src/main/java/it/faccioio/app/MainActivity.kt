@@ -13,9 +13,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.RecognizerIntent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -97,7 +100,9 @@ data class TaskItem(
     val completed: Boolean = false,
     val reminderTime: Long? = null,
     val category: String = "Personale",
-    val priority: String = "Media"
+    val priority: String = "Media",
+    val appointmentTime: Long? = null,
+    val location: String? = null
 )
 
 internal const val TASK_PREFS = "faccio_io_tasks"
@@ -122,6 +127,18 @@ fun FaccioIoApp() {
     var editedPriority by rememberSaveable { mutableStateOf("Media") }
     var categoryFilter by rememberSaveable { mutableStateOf("Tutte") }
     var priorityFilter by rememberSaveable { mutableStateOf("Tutte") }
+    var showAssistant by rememberSaveable { mutableStateOf(false) }
+    var assistantText by rememberSaveable { mutableStateOf("") }
+    var assistantResult by remember { mutableStateOf<ParsedAppointment?>(null) }
+
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val spokenText = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!spokenText.isNullOrBlank()) assistantText = spokenText
+    }
 
     val tasks = remember(context) {
         mutableStateListOf<TaskItem>().apply {
@@ -223,6 +240,15 @@ fun FaccioIoApp() {
             Text("Aggiungi attività")
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { showAssistant = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Assistente IA · testo o voce")
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
@@ -267,7 +293,10 @@ fun FaccioIoApp() {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             if (visibleTasks.isEmpty()) {
                 item {
                     Text(
@@ -307,6 +336,18 @@ fun FaccioIoApp() {
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
+                                task.appointmentTime?.let { appointmentTime ->
+                                    Text(
+                                        text = "Appuntamento: ${formatReminderTime(appointmentTime)}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                task.location?.let { location ->
+                                    Text(
+                                        text = "Luogo: $location",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                         }
 
@@ -331,6 +372,132 @@ fun FaccioIoApp() {
                 }
             }
         }
+    }
+
+    if (showAssistant) {
+        AlertDialog(
+            onDismissRequest = { showAssistant = false },
+            title = { Text("Assistente IA") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Scrivi o detta una frase, ad esempio: Domani alle 15 dentista in via Roma 10.")
+                    OutlinedTextField(
+                        value = assistantText,
+                        onValueChange = { assistantText = it },
+                        label = { Text("Descrivi l’appuntamento") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                )
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "it-IT")
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Descrivi l’appuntamento")
+                            }
+                            try {
+                                voiceLauncher.launch(intent)
+                            } catch (_: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    "Riconoscimento vocale non disponibile",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Detta appuntamento")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsed = parseAppointment(assistantText)
+                        if (parsed == null) {
+                            Toast.makeText(
+                                context,
+                                "Inserisci almeno data, ora e descrizione",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            assistantResult = parsed
+                            showAssistant = false
+                        }
+                    }
+                ) { Text("Interpreta") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAssistant = false }) { Text("Annulla") }
+            }
+        )
+    }
+
+    assistantResult?.let { appointment ->
+        AlertDialog(
+            onDismissRequest = { assistantResult = null },
+            title = { Text("Conferma appuntamento") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Attività: ${appointment.title}")
+                    Text("Quando: ${formatReminderTime(appointment.time)}")
+                    Text("Luogo: ${appointment.location ?: "non indicato"}")
+                    Text("Controlla i dati prima di salvare.")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (scheduleReminder(context, appointment.title, appointment.time)) {
+                            tasks.add(
+                                TaskItem(
+                                    title = appointment.title,
+                                    reminderTime = appointment.time,
+                                    category = "Personale",
+                                    priority = "Media",
+                                    appointmentTime = appointment.time,
+                                    location = appointment.location
+                                )
+                            )
+                            saveTasks(context, tasks)
+                            assistantText = ""
+                            assistantResult = null
+                            Toast.makeText(
+                                context,
+                                "Appuntamento e promemoria aggiunti",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                ) { Text("Salva con promemoria") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        tasks.add(
+                            TaskItem(
+                                title = appointment.title,
+                                category = "Personale",
+                                priority = "Media",
+                                appointmentTime = appointment.time,
+                                location = appointment.location
+                            )
+                        )
+                        saveTasks(context, tasks)
+                        assistantText = ""
+                        assistantResult = null
+                        Toast.makeText(
+                            context,
+                            "Appuntamento aggiunto",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                ) { Text("Salva senza promemoria") }
+            }
+        )
     }
 
     if (showReminderChoice) {
@@ -699,7 +866,17 @@ private fun parseTasks(
                     item.getLong("reminderTime")
                 },
                 category = item.optString("category", "Personale"),
-                priority = item.optString("priority", "Media")
+                priority = item.optString("priority", "Media"),
+                appointmentTime = if (item.isNull("appointmentTime")) {
+                    null
+                } else {
+                    item.optLong("appointmentTime")
+                },
+                location = if (item.isNull("location")) {
+                    null
+                } else {
+                    item.optString("location").takeIf { it.isNotBlank() }
+                }
             )
         }
     } catch (_: Exception) {
@@ -717,6 +894,8 @@ private fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("reminderTime", task.reminderTime ?: JSONObject.NULL)
                 put("category", task.category)
                 put("priority", task.priority)
+                put("appointmentTime", task.appointmentTime ?: JSONObject.NULL)
+                put("location", task.location ?: JSONObject.NULL)
             }
         )
     }
