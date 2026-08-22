@@ -112,7 +112,12 @@ data class TaskItem(
     val location: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val arrivalReminderId: String? = null
+    val arrivalReminderId: String? = null,
+    val departureTime: Long? = null,
+    val departureTravelMinutes: Int? = null,
+    val departureMarginMinutes: Int? = null,
+    val departureTransport: String = "Auto",
+    val departureSafety: String = "Normale"
 )
 
 data class ResolvedPlace(
@@ -170,6 +175,9 @@ fun FaccioIoApp() {
     var taskLocationQuery by rememberSaveable { mutableStateOf("") }
     var taskResolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
     var taskPlaceMessage by rememberSaveable { mutableStateOf("") }
+    var departureTransport by rememberSaveable { mutableStateOf("Auto") }
+    var departureSafety by rememberSaveable { mutableStateOf("Normale") }
+    var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -399,6 +407,10 @@ fun FaccioIoApp() {
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
+                                task.departureTime?.let { departureTime ->
+                                    Text("Partenza consigliata: ${formatReminderTime(departureTime)}", style = MaterialTheme.typography.bodySmall)
+                                    Text("Stima: ${task.departureTravelMinutes ?: 0} min + ${task.departureMarginMinutes ?: 0} min di margine", style = MaterialTheme.typography.bodySmall)
+                                }
                                 task.location?.let { location ->
                                     Text(
                                         text = "Luogo: $location",
@@ -420,6 +432,29 @@ fun FaccioIoApp() {
                                     }
                                 }
                                 if (task.latitude != null && task.longitude != null) {
+                                    if (task.appointmentTime != null) {
+                                        TextButton(onClick = {
+                                            estimateDepartureFromCurrentLocation(
+                                                context, task.appointmentTime, task.latitude, task.longitude,
+                                                task.departureTransport, task.departureSafety
+                                            ) { estimate ->
+                                                if (estimate == null) {
+                                                    Toast.makeText(context, "Posizione attuale non disponibile", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    cancelDepartureReminder(context, task)
+                                                    if (estimate.departureTime > System.currentTimeMillis()) {
+                                                        scheduleReminder(context, "È ora di partire: ${task.title}", estimate.departureTime)
+                                                    }
+                                                    tasks[index] = task.copy(
+                                                        departureTime = estimate.departureTime,
+                                                        departureTravelMinutes = estimate.travelMinutes,
+                                                        departureMarginMinutes = estimate.marginMinutes
+                                                    )
+                                                    saveTasks(context, tasks)
+                                                }
+                                            }
+                                        }) { Text("Ricalcola partenza") }
+                                    }
                                     if (task.arrivalReminderId == null) {
                                         TextButton(onClick = {
                                             if (!ensureLocationPermissions(context)) return@TextButton
@@ -537,6 +572,7 @@ fun FaccioIoApp() {
             customAppointmentReminderTime = null
             assistantCategory = suggestAppointmentCategory(appointment.title)
             assistantPriority = suggestAppointmentPriority(appointment.title)
+            departureEstimate = null
         }
 
         LaunchedEffect(appointment.location) {
@@ -607,6 +643,29 @@ fun FaccioIoApp() {
                             onValueSelected = { assistantPriority = it },
                             modifier = Modifier.weight(1f)
                         )
+                    }
+                    Text("Partenza consigliata", fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SelectionMenu("Mezzo", departureTransport, listOf("Auto", "A piedi", "Bicicletta"), { departureTransport = it; departureEstimate = null }, Modifier.weight(1f))
+                        SelectionMenu("Margine", departureSafety, listOf("Ridotto", "Normale", "Prudente"), { departureSafety = it; departureEstimate = null }, Modifier.weight(1f))
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val place = resolvedPlace
+                            if (place == null) {
+                                Toast.makeText(context, "Serve un luogo verificato", Toast.LENGTH_LONG).show()
+                            } else {
+                                estimateDepartureFromCurrentLocation(context, appointment.time, place.latitude, place.longitude, departureTransport, departureSafety) {
+                                    departureEstimate = it
+                                    if (it == null) Toast.makeText(context, "Concedi la posizione precisa e riprova", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }, modifier = Modifier.fillMaxWidth()
+                    ) { Text("Usa la mia posizione attuale") }
+                    departureEstimate?.let { estimate ->
+                        Text("Viaggio stimato: ${estimate.travelMinutes} minuti")
+                        Text("Margine: ${estimate.marginMinutes} minuti")
+                        Text("Partenza consigliata: ${formatReminderTime(estimate.departureTime)}")
                     }
                     SelectionMenu(
                         label = "Promemoria",
@@ -681,6 +740,10 @@ fun FaccioIoApp() {
                             ).show()
                             return@TextButton
                         }
+                        val departure = departureEstimate
+                        if (departure != null && departure.departureTime > System.currentTimeMillis()) {
+                            if (!scheduleReminder(context, "È ora di partire: ${appointment.title}", departure.departureTime)) return@TextButton
+                        }
                         if (
                             reminderTime != null &&
                             !scheduleReminder(context, appointment.title, reminderTime)
@@ -698,6 +761,11 @@ fun FaccioIoApp() {
                                 location = resolvedPlace?.address ?: appointment.location,
                                 latitude = resolvedPlace?.latitude,
                                 longitude = resolvedPlace?.longitude
+                                ,departureTime = departure?.departureTime,
+                                departureTravelMinutes = departure?.travelMinutes,
+                                departureMarginMinutes = departure?.marginMinutes,
+                                departureTransport = departureTransport,
+                                departureSafety = departureSafety
                             )
                         )
                         saveTasks(context, tasks)
@@ -989,6 +1057,7 @@ fun FaccioIoApp() {
                     TextButton(
                         onClick = {
                             cancelReminder(context, task)
+                            cancelDepartureReminder(context, task)
                             task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
                             tasks.removeAt(index)
                             saveTasks(context, tasks)
@@ -1182,6 +1251,20 @@ private fun cancelReminder(context: Context, task: TaskItem) {
     pendingIntent.cancel()
 }
 
+private fun cancelDepartureReminder(context: Context, task: TaskItem) {
+    val departureTime = task.departureTime ?: return
+    val alarmTitle = "È ora di partire: ${task.title}"
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        reminderRequestCode(alarmTitle, departureTime),
+        Intent(context, ReminderReceiver::class.java),
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+    ) ?: return
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    alarmManager.cancel(pendingIntent)
+    pendingIntent.cancel()
+}
+
 internal fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
     (reminderTime xor taskTitle.hashCode().toLong()).hashCode()
 
@@ -1281,7 +1364,12 @@ private fun parseTasks(
                 latitude = if (item.isNull("latitude")) null else item.optDouble("latitude"),
                 longitude = if (item.isNull("longitude")) null else item.optDouble("longitude"),
                 arrivalReminderId = if (item.isNull("arrivalReminderId")) null
-                    else item.optString("arrivalReminderId").takeIf { it.isNotBlank() }
+                    else item.optString("arrivalReminderId").takeIf { it.isNotBlank() },
+                departureTime = if (item.isNull("departureTime")) null else item.optLong("departureTime"),
+                departureTravelMinutes = if (item.isNull("departureTravelMinutes")) null else item.optInt("departureTravelMinutes"),
+                departureMarginMinutes = if (item.isNull("departureMarginMinutes")) null else item.optInt("departureMarginMinutes"),
+                departureTransport = item.optString("departureTransport", "Auto"),
+                departureSafety = item.optString("departureSafety", "Normale")
             )
         }
     } catch (_: Exception) {
@@ -1304,6 +1392,11 @@ internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("latitude", task.latitude ?: JSONObject.NULL)
                 put("longitude", task.longitude ?: JSONObject.NULL)
                 put("arrivalReminderId", task.arrivalReminderId ?: JSONObject.NULL)
+                put("departureTime", task.departureTime ?: JSONObject.NULL)
+                put("departureTravelMinutes", task.departureTravelMinutes ?: JSONObject.NULL)
+                put("departureMarginMinutes", task.departureMarginMinutes ?: JSONObject.NULL)
+                put("departureTransport", task.departureTransport)
+                put("departureSafety", task.departureSafety)
             }
         )
     }
