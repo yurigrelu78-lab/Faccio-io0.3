@@ -49,12 +49,26 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createReminderChannel()
-        requestNotificationPermission()
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    FaccioIoApp()
+                    var showSetup by remember {
+                        mutableStateOf(!isInitialSetupComplete(this@MainActivity))
+                    }
+                    if (showSetup) {
+                        InitialSetupScreen(
+                            onComplete = {
+                                markInitialSetupComplete(this@MainActivity)
+                                showSetup = false
+                            },
+                            onClose = if (isInitialSetupComplete(this@MainActivity)) {
+                                { showSetup = false }
+                            } else null
+                        )
+                    } else {
+                        FaccioIoApp(onOpenSetup = { showSetup = true })
+                    }
                 }
             }
         }
@@ -83,22 +97,6 @@ class MainActivity : ComponentActivity() {
 
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(channel)
-    }
-
-    private fun requestNotificationPermission() {
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                1001
-            )
-        }
     }
 }
 
@@ -139,7 +137,7 @@ private val APPOINTMENT_REMINDER_OPTIONS = listOf(
 )
 
 @Composable
-fun FaccioIoApp() {
+fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     val context = LocalContext.current
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
@@ -237,11 +235,20 @@ fun FaccioIoApp() {
             .fillMaxSize()
             .padding(20.dp)
     ) {
-        Text(
-            text = "Faccio io",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Faccio io",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold
+            )
+            TextButton(onClick = onOpenSetup) {
+                Text("Impostazioni")
+            }
+        }
         Text(
             text = "Un passo alla volta.",
             style = MaterialTheme.typography.bodyLarge
