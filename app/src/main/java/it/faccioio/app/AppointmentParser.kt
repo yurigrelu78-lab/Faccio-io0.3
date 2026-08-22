@@ -13,7 +13,9 @@ fun parseAppointment(
     input: String,
     now: Calendar = Calendar.getInstance()
 ): ParsedAppointment? {
-    val original = input.trim().replace(Regex("\\s+"), " ")
+    val original = normalizeSpokenTime(
+        input.trim().replace(Regex("\\s+"), " ")
+    )
     if (original.isBlank()) return null
     val lower = original.lowercase(Locale.ITALIAN)
 
@@ -87,4 +89,46 @@ fun parseAppointment(
 
     if (title.isBlank()) return null
     return ParsedAppointment(title, result.timeInMillis, location)
+}
+
+private fun normalizeSpokenTime(text: String): String {
+    val hourWords = mapOf(
+        "zero" to 0, "una" to 1, "uno" to 1, "due" to 2, "tre" to 3,
+        "quattro" to 4, "cinque" to 5, "sei" to 6, "sette" to 7,
+        "otto" to 8, "nove" to 9, "dieci" to 10, "undici" to 11,
+        "dodici" to 12, "tredici" to 13, "quattordici" to 14,
+        "quindici" to 15, "sedici" to 16, "diciassette" to 17,
+        "diciotto" to 18, "diciannove" to 19, "venti" to 20,
+        "ventuno" to 21, "ventidue" to 22, "ventitré" to 23,
+        "ventitre" to 23, "mezzogiorno" to 12, "mezzanotte" to 0
+    )
+    val wordsPattern = hourWords.keys
+        .sortedByDescending { it.length }
+        .joinToString("|") { Regex.escape(it) }
+    val spokenTime = Regex(
+        "\\b(ore|alle)\\s+($wordsPattern)(?:\\s+e\\s+(un quarto|mezza|mezzo|[a-zàèéìòù]+))?\\b",
+        RegexOption.IGNORE_CASE
+    )
+    val minuteWords = hourWords + mapOf(
+        "venticinque" to 25, "trenta" to 30, "trentacinque" to 35,
+        "quaranta" to 40, "quarantacinque" to 45, "cinquanta" to 50,
+        "cinquantacinque" to 55
+    )
+
+    return spokenTime.replace(text) { match ->
+        val hour = hourWords[match.groupValues[2].lowercase(Locale.ITALIAN)]
+            ?: return@replace match.value
+        val minuteText = match.groupValues[3].lowercase(Locale.ITALIAN)
+        val minutes = when (minuteText) {
+            "" -> null
+            "un quarto" -> 15
+            "mezza", "mezzo" -> 30
+            else -> minuteWords[minuteText]?.takeIf { it in 0..59 }
+        }
+        if (minutes == null) {
+            "${match.groupValues[1]} $hour"
+        } else {
+            "${match.groupValues[1]} $hour:${minutes.toString().padStart(2, '0')}"
+        }
+    }
 }
