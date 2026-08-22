@@ -117,7 +117,8 @@ data class TaskItem(
     val departureTransport: String = "Auto",
     val departureSafety: String = "Normale",
     val recurrence: String = "Mai",
-    val recurrenceIntervalDays: Int = 1
+    val recurrenceIntervalDays: Int = 1,
+    val durationMinutes: Int = 30
 )
 
 data class ResolvedPlace(
@@ -158,6 +159,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedRecurrence by rememberSaveable { mutableStateOf("Mai") }
     var editedRecurrenceDays by rememberSaveable { mutableStateOf("1") }
+    var editedDuration by rememberSaveable { mutableStateOf("30 minuti") }
+    var editedCustomDuration by rememberSaveable { mutableStateOf("30") }
     var categoryFilter by rememberSaveable { mutableStateOf("Tutte") }
     var priorityFilter by rememberSaveable { mutableStateOf("Tutte") }
     var showAssistant by rememberSaveable { mutableStateOf(false) }
@@ -173,10 +176,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     }
     var assistantCategory by rememberSaveable { mutableStateOf("Personale") }
     var assistantPriority by rememberSaveable { mutableStateOf("Media") }
+    var assistantDuration by rememberSaveable { mutableStateOf("30 minuti") }
+    var assistantCustomDuration by rememberSaveable { mutableStateOf("30") }
     var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
     var taskRecurrenceDays by rememberSaveable { mutableStateOf("1") }
+    var taskDuration by rememberSaveable { mutableStateOf("30 minuti") }
+    var taskCustomDuration by rememberSaveable { mutableStateOf("30") }
     var taskLocationQuery by rememberSaveable { mutableStateOf("") }
     var taskResolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
     var taskPlaceMessage by rememberSaveable { mutableStateOf("") }
@@ -211,7 +218,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         place: ResolvedPlace? = null,
         arrivalId: String? = null,
         recurrence: String = "Mai",
-        recurrenceDays: Int = 1
+        recurrenceDays: Int = 1,
+        durationMinutes: Int = 30
     ) {
         tasks.add(
             TaskItem(
@@ -224,7 +232,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 longitude = place?.longitude,
                 arrivalReminderId = arrivalId,
                 recurrence = recurrence,
-                recurrenceIntervalDays = recurrenceDays
+                recurrenceIntervalDays = recurrenceDays,
+                durationMinutes = durationMinutes
             )
         )
         saveTasks(context, tasks)
@@ -239,6 +248,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         taskReminderTime = null
         taskRecurrence = "Mai"
         taskRecurrenceDays = "1"
+        taskDuration = "30 minuti"
+        taskCustomDuration = "30"
         taskLocationQuery = ""
         taskResolvedPlace = null
         taskPlaceMessage = ""
@@ -360,6 +371,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     taskReminderTime = null
                     taskRecurrence = "Mai"
                     taskRecurrenceDays = "1"
+                    taskDuration = "30 minuti"
+                    taskCustomDuration = "30"
                     taskLocationQuery = ""
                     taskResolvedPlace = null
                     showReminderChoice = true
@@ -458,6 +471,10 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     text = "${task.category} • Priorità ${task.priority}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = priorityColor(task.priority)
+                                )
+                                Text(
+                                    text = "Durata: ${formatDuration(task.durationMinutes)}",
+                                    style = MaterialTheme.typography.bodySmall
                                 )
                                 task.reminderTime?.let { selectedTime ->
                                     Text(
@@ -569,6 +586,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     editedReminderTime = task.reminderTime
                                     editedRecurrence = task.recurrence
                                     editedRecurrenceDays = task.recurrenceIntervalDays.toString()
+                                    editedDuration = durationOption(task.durationMinutes)
+                                    editedCustomDuration = task.durationMinutes.toString()
                                 }
                             ) {
                                 Text("Modifica")
@@ -724,6 +743,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    DurationSelector(
+                        selected = assistantDuration,
+                        customValue = assistantCustomDuration,
+                        onSelected = { assistantDuration = it },
+                        onCustomChanged = { assistantCustomDuration = it }
+                    )
                     Text("Partenza consigliata", fontWeight = FontWeight.SemiBold)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SelectionMenu("Mezzo", departureTransport, listOf("Auto", "A piedi", "Bicicletta"), { departureTransport = it; departureEstimate = null }, Modifier.weight(1f))
@@ -829,6 +854,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             return@TextButton
                         }
                         val departure = departureEstimate
+                        val durationMinutes = selectedDurationMinutes(
+                            assistantDuration,
+                            assistantCustomDuration
+                        )
+                        if (durationMinutes !in 5..720) {
+                            Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
                         if (departure != null && departure.departureTime <= System.currentTimeMillis()) {
                             Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
                             return@TextButton
@@ -857,7 +890,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 departureTravelMinutes = departure?.travelMinutes,
                                 departureMarginMinutes = departure?.marginMinutes,
                                 departureTransport = departureTransport,
-                                departureSafety = departureSafety
+                                departureSafety = departureSafety,
+                                durationMinutes = durationMinutes
                             )
                         )
                         saveTasks(context, tasks)
@@ -915,6 +949,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                    DurationSelector(
+                        selected = taskDuration,
+                        customValue = taskCustomDuration,
+                        onSelected = { taskDuration = it },
+                        onCustomChanged = { taskCustomDuration = it }
+                    )
                     if (
                         taskReminderMode == "Data e ora" ||
                         taskReminderMode == "Entrambi" ||
@@ -961,6 +1001,10 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             taskReminderMode == "Entrambi" || taskRecurrence != "Mai"
                         val needsPlace = taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi"
                         val recurrenceDays = taskRecurrenceDays.toIntOrNull() ?: 0
+                        val durationMinutes = selectedDurationMinutes(taskDuration, taskCustomDuration)
+                        if (durationMinutes !in 5..720) {
+                            Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show(); return@TextButton
+                        }
                         if (taskRecurrence == "Personalizzata" && recurrenceDays !in 1..365) {
                             Toast.makeText(context, "Inserisci un intervallo da 1 a 365 giorni", Toast.LENGTH_LONG).show(); return@TextButton
                         }
@@ -976,11 +1020,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             if (!ensureLocationPermissions(context)) return@TextButton
                             val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
                             registerArrivalGeofence(context, id, pendingTask, place!!.latitude, place.longitude) { ok ->
-                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays.coerceAtLeast(1))
+                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays.coerceAtLeast(1), durationMinutes)
                                 else Toast.makeText(context, "Attivazione del luogo non riuscita", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays.coerceAtLeast(1))
+                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays.coerceAtLeast(1), durationMinutes = durationMinutes)
                         }
                     }
                 ) { Text("Salva attività") }
@@ -1072,6 +1116,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
+                        DurationSelector(
+                            selected = editedDuration,
+                            customValue = editedCustomDuration,
+                            onSelected = { editedDuration = it },
+                            onCustomChanged = { editedCustomDuration = it }
+                        )
                     }
                 },
                 confirmButton = {
@@ -1086,6 +1136,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 ).show()
                             } else {
                                 val recurrenceDays = editedRecurrenceDays.toIntOrNull() ?: 0
+                                val durationMinutes = selectedDurationMinutes(editedDuration, editedCustomDuration)
+                                if (durationMinutes !in 5..720) {
+                                    Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
+                                    return@TextButton
+                                }
                                 if (editedRecurrence == "Personalizzata" && recurrenceDays !in 1..365) {
                                     Toast.makeText(context, "Inserisci un intervallo da 1 a 365 giorni", Toast.LENGTH_LONG).show()
                                     return@TextButton
@@ -1155,7 +1210,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     appointmentTime = newAppointmentTime,
                                     reminderTime = newReminderTime,
                                     recurrence = editedRecurrence,
-                                    recurrenceIntervalDays = recurrenceDays.coerceAtLeast(1)
+                                    recurrenceIntervalDays = recurrenceDays.coerceAtLeast(1),
+                                    durationMinutes = durationMinutes
                                 )
                                 saveTasks(context, tasks)
                                 editingIndex = null
@@ -1258,6 +1314,17 @@ private fun TodayAgenda(
             .thenBy { it.first }
     )
     val nextEntry = scheduled.firstOrNull { !it.task.completed && it.time >= now }
+    val overlappingIndexes = scheduled.indices.flatMap { firstIndex ->
+        ((firstIndex + 1) until scheduled.size).flatMap { secondIndex ->
+            val first = scheduled[firstIndex]
+            val second = scheduled[secondIndex]
+            if (first.time + first.task.durationMinutes * 60_000L > second.time) {
+                listOf(first.index, second.index)
+            } else emptyList()
+        }
+    }.toSet()
+    val totalMinutes = scheduled.sumOf { it.task.durationMinutes } +
+        unscheduled.sumOf { it.second.durationMinutes }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -1271,7 +1338,7 @@ private fun TodayAgenda(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = agendaSummary(scheduled, unscheduled.size),
+                text = agendaSummary(scheduled, unscheduled.size, totalMinutes),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -1303,6 +1370,7 @@ private fun TodayAgenda(
                 AgendaTaskCard(
                     task = entry.task,
                     leadingText = formatHour(entry.time),
+                    hasConflict = entry.index in overlappingIndexes,
                     onCompletedChange = { onCompletedChange(entry.index, it) },
                     onOpenMap = onOpenMap
                 )
@@ -1338,6 +1406,7 @@ private fun TodayAgenda(
 private fun AgendaTaskCard(
     task: TaskItem,
     leadingText: String,
+    hasConflict: Boolean = false,
     onCompletedChange: (Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit
 ) {
@@ -1359,6 +1428,14 @@ private fun AgendaTaskCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = priorityColor(task.priority)
                 )
+                Text("Durata stimata: ${formatDuration(task.durationMinutes)}", style = MaterialTheme.typography.bodySmall)
+                if (hasConflict) {
+                    Text(
+                        "Attenzione: questo orario si sovrappone a un altro impegno",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 if (task.recurrence != "Mai") {
                     Text(recurrenceLabel(task), style = MaterialTheme.typography.bodySmall)
                 }
@@ -1386,10 +1463,14 @@ private fun priorityOrder(priority: String): Int = when (priority) {
     else -> 2
 }
 
-private fun agendaSummary(scheduled: List<AgendaEntry>, unscheduledCount: Int): String {
+private fun agendaSummary(
+    scheduled: List<AgendaEntry>,
+    unscheduledCount: Int,
+    totalMinutes: Int
+): String {
     val appointments = scheduled.count { it.task.appointmentTime != null }
     val timedTasks = scheduled.size - appointments
-    return "$appointments appuntamenti • $timedTasks attività con orario • $unscheduledCount senza orario"
+    return "$appointments appuntamenti • $timedTasks con orario • $unscheduledCount senza orario\nCarico stimato: ${formatDuration(totalMinutes)}"
 }
 
 private fun agendaTimeText(task: TaskItem, time: Long): String =
@@ -1398,6 +1479,57 @@ private fun agendaTimeText(task: TaskItem, time: Long): String =
 
 private fun formatHour(time: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
+
+private fun durationOption(minutes: Int): String = when (minutes) {
+    15 -> "15 minuti"
+    30 -> "30 minuti"
+    60 -> "1 ora"
+    120 -> "2 ore"
+    else -> "Personalizzata"
+}
+
+private fun selectedDurationMinutes(option: String, customValue: String): Int = when (option) {
+    "15 minuti" -> 15
+    "30 minuti" -> 30
+    "1 ora" -> 60
+    "2 ore" -> 120
+    else -> customValue.toIntOrNull() ?: 0
+}
+
+private fun formatDuration(minutes: Int): String {
+    val hours = minutes / 60
+    val remaining = minutes % 60
+    return when {
+        hours == 0 -> "$remaining min"
+        remaining == 0 -> "$hours h"
+        else -> "$hours h $remaining min"
+    }
+}
+
+@Composable
+private fun DurationSelector(
+    selected: String,
+    customValue: String,
+    onSelected: (String) -> Unit,
+    onCustomChanged: (String) -> Unit
+) {
+    SelectionMenu(
+        label = "Durata",
+        selectedValue = selected,
+        values = listOf("15 minuti", "30 minuti", "1 ora", "2 ore", "Personalizzata"),
+        onValueSelected = onSelected,
+        modifier = Modifier.fillMaxWidth()
+    )
+    if (selected == "Personalizzata") {
+        OutlinedTextField(
+            value = customValue,
+            onValueChange = { onCustomChanged(it.filter(Char::isDigit).take(3)) },
+            label = { Text("Durata in minuti (5–720)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
 
 private fun recurrenceLabel(task: TaskItem): String = when (task.recurrence) {
     "Personalizzata" -> "Si ripete ogni ${task.recurrenceIntervalDays} giorni"
@@ -1749,7 +1881,8 @@ private fun parseTasks(
                 departureTransport = item.optString("departureTransport", "Auto"),
                 departureSafety = item.optString("departureSafety", "Normale"),
                 recurrence = item.optString("recurrence", "Mai"),
-                recurrenceIntervalDays = item.optInt("recurrenceIntervalDays", 1).coerceAtLeast(1)
+                recurrenceIntervalDays = item.optInt("recurrenceIntervalDays", 1).coerceAtLeast(1),
+                durationMinutes = item.optInt("durationMinutes", 30).coerceIn(5, 720)
             )
         }
     } catch (_: Exception) {
@@ -1779,6 +1912,7 @@ internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("departureSafety", task.departureSafety)
                 put("recurrence", task.recurrence)
                 put("recurrenceIntervalDays", task.recurrenceIntervalDays)
+                put("durationMinutes", task.durationMinutes)
             }
         )
     }
