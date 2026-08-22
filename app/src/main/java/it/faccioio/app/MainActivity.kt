@@ -614,6 +614,25 @@ internal fun loadTasks(context: Context): List<TaskItem> {
     val savedJson = preferences.getString(TASKS_KEY, null)
         ?: return defaultTasks()
 
+    mirrorTasksForBoot(context, savedJson)
+
+    return parseTasks(savedJson)
+}
+
+internal fun loadTasksForBoot(context: Context): List<TaskItem> {
+    val bootContext = context.createDeviceProtectedStorageContext()
+    val savedJson = bootContext
+        .getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
+        .getString(TASKS_KEY, null)
+        ?: return emptyList()
+
+    return parseTasks(savedJson, emptyList())
+}
+
+private fun parseTasks(
+    savedJson: String,
+    fallback: List<TaskItem> = defaultTasks()
+): List<TaskItem> {
     return try {
         val array = JSONArray(savedJson)
         List(array.length()) { index ->
@@ -631,7 +650,7 @@ internal fun loadTasks(context: Context): List<TaskItem> {
             )
         }
     } catch (_: Exception) {
-        defaultTasks()
+        fallback
     }
 }
 
@@ -649,9 +668,21 @@ private fun saveTasks(context: Context, tasks: List<TaskItem>) {
         )
     }
 
+    val savedJson = array.toString()
+
     context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
         .edit()
-        .putString(TASKS_KEY, array.toString())
+        .putString(TASKS_KEY, savedJson)
+        .apply()
+
+    mirrorTasksForBoot(context, savedJson)
+}
+
+private fun mirrorTasksForBoot(context: Context, savedJson: String) {
+    context.createDeviceProtectedStorageContext()
+        .getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(TASKS_KEY, savedJson)
         .apply()
 }
 
