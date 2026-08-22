@@ -165,6 +165,11 @@ fun FaccioIoApp() {
     }
     var assistantCategory by rememberSaveable { mutableStateOf("Personale") }
     var assistantPriority by rememberSaveable { mutableStateOf("Media") }
+    var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
+    var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var taskLocationQuery by rememberSaveable { mutableStateOf("") }
+    var taskResolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
+    var taskPlaceMessage by rememberSaveable { mutableStateOf("") }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -187,13 +192,21 @@ fun FaccioIoApp() {
             (priorityFilter == "Tutte" || task.priority == priorityFilter)
     }
 
-    fun addPendingTask(reminderTime: Long? = null) {
+    fun addPendingTask(
+        reminderTime: Long? = null,
+        place: ResolvedPlace? = null,
+        arrivalId: String? = null
+    ) {
         tasks.add(
             TaskItem(
                 title = pendingTask,
                 reminderTime = reminderTime,
                 category = pendingCategory,
-                priority = pendingPriority
+                priority = pendingPriority,
+                location = place?.address,
+                latitude = place?.latitude,
+                longitude = place?.longitude,
+                arrivalReminderId = arrivalId
             )
         )
         saveTasks(context, tasks)
@@ -204,6 +217,11 @@ fun FaccioIoApp() {
         pendingCategory = "Personale"
         pendingPriority = "Media"
         showReminderChoice = false
+        taskReminderMode = "Nessuno"
+        taskReminderTime = null
+        taskLocationQuery = ""
+        taskResolvedPlace = null
+        taskPlaceMessage = ""
     }
 
     Column(
@@ -267,6 +285,10 @@ fun FaccioIoApp() {
                     pendingTask = text
                     pendingCategory = selectedCategory
                     pendingPriority = selectedPriority
+                    taskReminderMode = "Nessuno"
+                    taskReminderTime = null
+                    taskLocationQuery = ""
+                    taskResolvedPlace = null
                     showReminderChoice = true
                 }
             },
@@ -397,7 +419,7 @@ fun FaccioIoApp() {
                                         Text("Apri nella mappa")
                                     }
                                 }
-                                if (task.appointmentTime != null && task.latitude != null && task.longitude != null) {
+                                if (task.latitude != null && task.longitude != null) {
                                     if (task.arrivalReminderId == null) {
                                         TextButton(onClick = {
                                             if (!ensureLocationPermissions(context)) return@TextButton
@@ -704,43 +726,82 @@ fun FaccioIoApp() {
     if (showReminderChoice) {
         AlertDialog(
             onDismissRequest = { showReminderChoice = false },
-            title = { Text("Vuoi un promemoria?") },
+            title = { Text("Come vuoi essere avvisato?") },
             text = {
-                Text(
-                    "Puoi aggiungere l’attività subito oppure scegliere data e ora del promemoria."
-                )
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SelectionMenu(
+                        label = "Modalità",
+                        selectedValue = taskReminderMode,
+                        values = listOf("Nessuno", "Data e ora", "Quando arrivo", "Entrambi"),
+                        onValueSelected = { taskReminderMode = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (taskReminderMode == "Data e ora" || taskReminderMode == "Entrambi") {
+                        OutlinedButton(
+                            onClick = { showReminderPicker(context) { taskReminderTime = it } },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(taskReminderTime?.let { "Promemoria: ${formatReminderTime(it)}" } ?: "Scegli data e ora")
+                        }
+                    }
+                    if (taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi") {
+                        OutlinedTextField(
+                            value = taskLocationQuery,
+                            onValueChange = { taskLocationQuery = it; taskResolvedPlace = null },
+                            label = { Text("Luogo o indirizzo") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                if (taskLocationQuery.isBlank()) return@OutlinedButton
+                                taskPlaceMessage = "Ricerca in corso…"
+                                resolvePlace(context, taskLocationQuery) { place ->
+                                    taskResolvedPlace = place
+                                    taskPlaceMessage = if (place == null) "Luogo non trovato" else "Luogo trovato: ${place.address}"
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Cerca luogo") }
+                        if (taskPlaceMessage.isNotBlank()) Text(taskPlaceMessage, style = MaterialTheme.typography.bodySmall)
+                        taskResolvedPlace?.let { place ->
+                            TextButton(onClick = { openPlaceOnMap(context, place.address, place.latitude, place.longitude) }) {
+                                Text("Controlla sulla mappa")
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showReminderChoice = false
-                        showReminderPicker(context) { selectedTime ->
-                            if (selectedTime <= System.currentTimeMillis()) {
-                                Toast.makeText(
-                                    context,
-                                    "Scegli un orario futuro",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            } else if (
-                                scheduleReminder(context, pendingTask, selectedTime)
-                            ) {
-                                addPendingTask(selectedTime)
-                                Toast.makeText(
-                                    context,
-                                    "Attività e promemoria aggiunti",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                        val needsTime = taskReminderMode == "Data e ora" || taskReminderMode == "Entrambi"
+                        val needsPlace = taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi"
+                        if (needsTime && (taskReminderTime == null || taskReminderTime!! <= System.currentTimeMillis())) {
+                            Toast.makeText(context, "Scegli un orario futuro", Toast.LENGTH_LONG).show(); return@TextButton
+                        }
+                        val place = taskResolvedPlace
+                        if (needsPlace && place == null) {
+                            Toast.makeText(context, "Cerca e verifica prima il luogo", Toast.LENGTH_LONG).show(); return@TextButton
+                        }
+                        if (needsTime && !scheduleReminder(context, pendingTask, taskReminderTime!!)) return@TextButton
+                        if (needsPlace) {
+                            if (!ensureLocationPermissions(context)) return@TextButton
+                            val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
+                            registerArrivalGeofence(context, id, pendingTask, place!!.latitude, place.longitude) { ok ->
+                                if (ok) addPendingTask(taskReminderTime, place, id)
+                                else Toast.makeText(context, "Attivazione del luogo non riuscita", Toast.LENGTH_LONG).show()
                             }
+                        } else {
+                            addPendingTask(taskReminderTime)
                         }
                     }
-                ) {
-                    Text("Imposta promemoria")
-                }
+                ) { Text("Salva attività") }
             },
             dismissButton = {
-                TextButton(onClick = { addPendingTask() }) {
-                    Text("Senza promemoria")
-                }
+                TextButton(onClick = { showReminderChoice = false }) { Text("Annulla") }
             }
         )
     }
