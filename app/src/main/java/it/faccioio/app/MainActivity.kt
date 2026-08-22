@@ -422,6 +422,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             )
         } else if (mainSection == "Attività") {
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Attività", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = FaccioNavy)
+            Text("${visibleTasks.size} visibili", style = MaterialTheme.typography.labelMedium, color = FaccioMutedText)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         if (showTaskSearch) {
             OutlinedTextField(
                 value = taskSearchQuery,
@@ -438,7 +449,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     }
                 } else null,
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = FaccioTeal,
+                    focusedLabelColor = FaccioTeal,
+                    focusedLeadingIconColor = FaccioTeal
+                )
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -448,7 +464,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             value = newTask,
             onValueChange = { newTask = it },
             label = { Text("Cosa devi fare?") },
-            modifier = Modifier.fillMaxWidth()
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = FaccioTeal,
+                focusedLabelColor = FaccioTeal
+            )
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -473,8 +494,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
         Button(
             onClick = {
                 val text = newTask.trim()
@@ -500,26 +525,32 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     showReminderChoice = true
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
         ) {
-            Text("Aggiungi attività")
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Aggiungi")
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
             onClick = { showAssistant = true },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioTeal),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
         ) {
-            Text("Assistente IA · testo o voce")
+            Text("Assistente IA")
+        }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Text(
             text = "Le tue attività",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = FaccioNavy
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -578,50 +609,62 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             items(visibleTasks) { indexedTask ->
                 val index = indexedTask.index
                 val task = indexedTask.value
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(8.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.Top
                         ) {
                             Checkbox(
                                 checked = task.completed,
                                 onCheckedChange = { checked ->
                                     updateTaskCompletion(context, tasks, index, checked)
-                                }
+                                },
+                                modifier = Modifier.size(40.dp),
+                                colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
                             )
 
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(text = task.title)
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 10.dp, start = 2.dp, end = 9.dp)
+                                    .size(9.dp)
+                                    .background(taskCategoryColor(task.category), RoundedCornerShape(50))
+                            )
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = task.title, fontWeight = FontWeight.SemiBold, color = FaccioNavy)
                                 Text(
-                                    text = "${task.category} • Priorità ${task.priority}",
+                                    text = "${task.category} · ${formatDuration(task.durationMinutes)} · Priorità ${task.priority}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = priorityColor(task.priority)
-                                )
-                                Text(
-                                    text = "Durata: ${formatDuration(task.durationMinutes)}",
-                                    style = MaterialTheme.typography.bodySmall
+                                    color = FaccioMutedText
                                 )
                                 task.reminderTime?.let { selectedTime ->
                                     Text(
                                         text = "Promemoria: ${formatReminderTime(selectedTime)}",
-                                        style = MaterialTheme.typography.bodySmall
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioTeal
                                     )
                                 }
                                 task.appointmentTime?.let { appointmentTime ->
                                     Text(
                                         text = "Appuntamento: ${formatReminderTime(appointmentTime)}",
-                                        style = MaterialTheme.typography.bodySmall
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioNavy
                                     )
                                 }
                                 task.departureTime?.let { departureTime ->
-                                    Text("Avviso di partenza programmato: ${formatReminderTime(departureTime)}", style = MaterialTheme.typography.bodySmall)
-                                    Text("Stima: ${task.departureTravelMinutes ?: 0} min + ${task.departureMarginMinutes ?: 0} min di margine", style = MaterialTheme.typography.bodySmall)
+                                    Text("Partenza: ${formatReminderTime(departureTime)}", style = MaterialTheme.typography.bodySmall, color = FaccioTeal)
+                                    Text("${task.departureTravelMinutes ?: 0} min + ${task.departureMarginMinutes ?: 0} min di margine", style = MaterialTheme.typography.bodySmall, color = FaccioMutedText)
                                 }
                                 task.location?.let { location ->
                                     Text(
-                                        text = "Luogo: $location",
-                                        style = MaterialTheme.typography.bodySmall
+                                        text = location,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioMutedText
                                     )
                                 }
                                 if (task.recurrence != "Mai") {
@@ -650,9 +693,10 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                                 task.latitude,
                                                 task.longitude
                                             )
-                                        }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                     ) {
-                                        Text("Apri nella mappa")
+                                        Text("Mappa", color = FaccioTeal)
                                     }
                                 }
                                 if (task.latitude != null && task.longitude != null) {
@@ -725,12 +769,16 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     editedRecurrenceDays = task.recurrenceIntervalDays.toString()
                                     editedDuration = durationOption(task.durationMinutes)
                                     editedCustomDuration = task.durationMinutes.toString()
-                                }
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                             ) {
-                                Text("Modifica")
+                                Text("Modifica", color = FaccioTeal)
                             }
-                            TextButton(onClick = { deletingIndex = index }) {
-                                Text("Elimina")
+                            TextButton(
+                                onClick = { deletingIndex = index },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                            ) {
+                                Text("Elimina", color = FaccioCoral)
                             }
                         }
                     }
@@ -1720,6 +1768,13 @@ private val FaccioAmber = Color(0xFFF1AD43)
 private val FaccioCard = Color(0xFFF4F7FA)
 private val FaccioMutedText = Color(0xFF5E6875)
 
+private fun taskCategoryColor(category: String): Color = when (category) {
+    "Salute" -> FaccioCoral
+    "Casa" -> FaccioAmber
+    "Lavoro" -> FaccioTeal
+    else -> Color(0xFF3978C5)
+}
+
 @Composable
 private fun TodayAgenda(
     tasks: List<TaskItem>,
@@ -1939,12 +1994,7 @@ private fun AgendaTaskCard(
     onCompletedChange: (Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit
 ) {
-    val categoryColor = when (task.category) {
-        "Salute" -> FaccioCoral
-        "Casa" -> FaccioAmber
-        "Lavoro" -> FaccioTeal
-        else -> Color(0xFF3978C5)
-    }
+    val categoryColor = taskCategoryColor(task.category)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -2481,9 +2531,11 @@ private fun SelectionMenu(
     Box(modifier = modifier) {
         OutlinedButton(
             onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
-            Text("$label: $selectedValue")
+            Text("$label: $selectedValue", maxLines = 1)
         }
         DropdownMenu(
             expanded = expanded,
