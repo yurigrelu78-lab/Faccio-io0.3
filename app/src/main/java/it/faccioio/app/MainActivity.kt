@@ -128,10 +128,14 @@ data class TaskItem(
     val recurrence: String = "Mai",
     val recurrenceIntervalDays: Int = 1,
     val durationMinutes: Int = 30,
-    val routineSteps: List<RoutineStep> = emptyList()
+    val routineSteps: List<RoutineStep> = emptyList(),
+    val shoppingListEnabled: Boolean = false,
+    val shoppingItems: List<ShoppingItem> = emptyList()
 )
 
 data class RoutineStep(val title: String, val completed: Boolean = false)
+
+data class ShoppingItem(val title: String, val completed: Boolean = false)
 
 data class ResolvedPlace(
     val address: String,
@@ -207,6 +211,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var showTaskSearch by rememberSaveable { mutableStateOf(false) }
     var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
+    var showShoppingSuggestion by rememberSaveable { mutableStateOf(false) }
+    var pendingHasShoppingList by rememberSaveable { mutableStateOf(false) }
+    var shoppingListIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var newShoppingItem by rememberSaveable { mutableStateOf("") }
+    val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
     var showHelpGuide by rememberSaveable { mutableStateOf(false) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
     var customRoutineName by rememberSaveable { mutableStateOf("") }
@@ -270,6 +279,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 )
     }
 
+    fun openShoppingList(index: Int) {
+        val task = tasks.getOrNull(index) ?: return
+        shoppingDraft.clear()
+        shoppingDraft.addAll(task.shoppingItems)
+        newShoppingItem = ""
+        shoppingListIndex = index
+    }
+
     fun addPendingTask(
         reminderTime: Long? = null,
         place: ResolvedPlace? = null,
@@ -291,10 +308,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 recurrence = recurrence,
                 recurrenceIntervalDays = recurrenceDays,
                 durationMinutes = durationMinutes,
-                routineSteps = pendingRoutineSteps
+                routineSteps = pendingRoutineSteps,
+                shoppingListEnabled = pendingHasShoppingList
             )
         )
         saveTasks(context, tasks)
+        if (pendingHasShoppingList) openShoppingList(tasks.lastIndex)
         newTask = ""
         pendingTask = ""
         selectedCategory = "Personale"
@@ -302,6 +321,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         pendingCategory = "Personale"
         pendingPriority = "Media"
         pendingRoutineSteps = emptyList()
+        pendingHasShoppingList = false
         showReminderChoice = false
         taskReminderMode = "Nessuno"
         taskReminderTime = null
@@ -419,6 +439,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     )
                 },
                 onAddTask = { mainSection = "Attività" },
+                onOpenShoppingList = { index -> openShoppingList(index) },
                 modifier = Modifier.weight(1f)
             )
         } else if (mainSection == "Attività") {
@@ -523,7 +544,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     taskCustomDuration = "30"
                     taskLocationQuery = ""
                     taskResolvedPlace = null
-                    showReminderChoice = true
+                    pendingHasShoppingList = false
+                    if (isShoppingTask(text)) {
+                        showShoppingSuggestion = true
+                    } else {
+                        showReminderChoice = true
+                    }
                 }
             },
             modifier = Modifier.weight(1f),
@@ -683,6 +709,25 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                             }
                                         )
                                         Text(step.title, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                if (task.shoppingListEnabled) {
+                                    val completedItems = task.shoppingItems.count { it.completed }
+                                    TextButton(
+                                        onClick = { openShoppingList(index) },
+                                        contentPadding = PaddingValues(
+                                            horizontal = 4.dp,
+                                            vertical = 0.dp
+                                        )
+                                    ) {
+                                        Text(
+                                            if (task.shoppingItems.isEmpty()) {
+                                                "Apri lista"
+                                            } else {
+                                                "Lista: $completedItems di ${task.shoppingItems.size}"
+                                            },
+                                            color = FaccioTeal
+                                        )
                                     }
                                 }
                                 if (task.location != null) {
@@ -1896,6 +1941,185 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         )
     }
 
+    if (showShoppingSuggestion) {
+        AlertDialog(
+            onDismissRequest = { showShoppingSuggestion = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            title = {
+                Text(
+                    "Vuoi aggiungere una lista?",
+                    fontWeight = FontWeight.Bold,
+                    color = FaccioNavy
+                )
+            },
+            text = {
+                Text(
+                    "Sembra un’attività legata alla spesa. Puoi creare una lista specifica e spuntare gli articoli mentre acquisti.",
+                    color = FaccioMutedText
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingHasShoppingList = true
+                        showShoppingSuggestion = false
+                        showReminderChoice = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("Crea lista") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingHasShoppingList = false
+                        showShoppingSuggestion = false
+                        showReminderChoice = true
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
+                ) { Text("Non ora") }
+            }
+        )
+    }
+
+    shoppingListIndex?.let { listIndex ->
+        val listTask = tasks.getOrNull(listIndex)
+        if (listTask != null) {
+            AlertDialog(
+                onDismissRequest = { shoppingListIndex = null },
+                shape = RoundedCornerShape(20.dp),
+                containerColor = Color.White,
+                tonalElevation = 3.dp,
+                title = {
+                    Column {
+                        Text(
+                            "Lista",
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioNavy
+                        )
+                        Text(
+                            listTask.title,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FaccioMutedText
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (shoppingDraft.isEmpty()) {
+                            Text(
+                                "La lista è vuota. Aggiungi il primo elemento.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FaccioMutedText
+                            )
+                        }
+                        shoppingDraft.forEachIndexed { itemIndex, item ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = item.completed,
+                                    onCheckedChange = {
+                                        shoppingDraft[itemIndex] =
+                                            item.copy(completed = it)
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = FaccioTeal
+                                    )
+                                )
+                                Text(
+                                    item.title,
+                                    modifier = Modifier.weight(1f),
+                                    color = if (item.completed) {
+                                        FaccioMutedText
+                                    } else {
+                                        FaccioNavy
+                                    }
+                                )
+                                TextButton(
+                                    onClick = { shoppingDraft.removeAt(itemIndex) },
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = FaccioCoral
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 4.dp)
+                                ) { Text("×") }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = newShoppingItem,
+                                onValueChange = { newShoppingItem = it },
+                                label = { Text("Nuovo elemento") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = FaccioTeal,
+                                    focusedLabelColor = FaccioTeal
+                                )
+                            )
+                            IconButton(
+                                onClick = {
+                                    val item = newShoppingItem.trim()
+                                    if (item.isNotEmpty()) {
+                                        shoppingDraft.add(ShoppingItem(item))
+                                        newShoppingItem = ""
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Aggiungi elemento",
+                                    tint = FaccioTeal
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val trailingItem = newShoppingItem.trim()
+                            if (trailingItem.isNotEmpty()) {
+                                shoppingDraft.add(ShoppingItem(trailingItem))
+                                newShoppingItem = ""
+                            }
+                            tasks[listIndex] = listTask.copy(
+                                shoppingItems = shoppingDraft
+                                    .filter { it.title.isNotBlank() }
+                            )
+                            saveTasks(context, tasks)
+                            shoppingListIndex = null
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FaccioNavy
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("Salva lista") }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { shoppingListIndex = null },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = FaccioMutedText
+                        )
+                    ) { Text("Annulla") }
+                }
+            )
+        } else {
+            shoppingListIndex = null
+        }
+    }
+
     if (showReminderChoice) {
         AlertDialog(
             onDismissRequest = { showReminderChoice = false },
@@ -2276,6 +2500,17 @@ private val FaccioAmber = Color(0xFFF1AD43)
 private val FaccioCard = Color(0xFFF4F7FA)
 private val FaccioMutedText = Color(0xFF5E6875)
 
+private fun isShoppingTask(title: String): Boolean {
+    val text = title.lowercase(Locale.ITALIAN)
+    return listOf(
+        "spesa",
+        "supermercato",
+        "comprare",
+        "acquisti",
+        "alimentari"
+    ).any { keyword -> keyword in text }
+}
+
 private fun taskCategoryColor(category: String): Color = when (category) {
     "Salute" -> FaccioCoral
     "Casa" -> FaccioAmber
@@ -2317,6 +2552,7 @@ private fun TodayAgenda(
     onStepChange: (Int, Int, Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit,
     onAddTask: () -> Unit,
+    onOpenShoppingList: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -2486,7 +2722,8 @@ private fun TodayAgenda(
                         onStepChange(entry.index, stepIndex, completed)
                     },
                     onCompletedChange = { onCompletedChange(entry.index, it) },
-                    onOpenMap = onOpenMap
+                    onOpenMap = onOpenMap,
+                    onOpenShoppingList = { onOpenShoppingList(entry.index) }
                 )
             }
         }
@@ -2501,7 +2738,8 @@ private fun TodayAgenda(
                         onStepChange(index, stepIndex, completed)
                     },
                     onCompletedChange = { onCompletedChange(index, it) },
-                    onOpenMap = onOpenMap
+                    onOpenMap = onOpenMap,
+                    onOpenShoppingList = { onOpenShoppingList(index) }
                 )
             }
         }
@@ -2527,7 +2765,8 @@ private fun AgendaTaskCard(
     isNext: Boolean = false,
     onStepChange: (Int, Boolean) -> Unit,
     onCompletedChange: (Boolean) -> Unit,
-    onOpenMap: (TaskItem) -> Unit
+    onOpenMap: (TaskItem) -> Unit,
+    onOpenShoppingList: () -> Unit
 ) {
     val categoryColor = taskCategoryColor(task.category)
     Card(
@@ -2577,6 +2816,22 @@ private fun AgendaTaskCard(
                             onCheckedChange = { onStepChange(stepIndex, it) }
                         )
                         Text(step.title, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (task.shoppingListEnabled) {
+                    val completedItems = task.shoppingItems.count { it.completed }
+                    TextButton(
+                        onClick = onOpenShoppingList,
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            if (task.shoppingItems.isEmpty()) {
+                                "Apri lista"
+                            } else {
+                                "Lista: $completedItems di ${task.shoppingItems.size}"
+                            },
+                            color = FaccioTeal
+                        )
                     }
                 }
                 task.departureTime?.let { Text("Partenza: ${formatHour(it)}", style = MaterialTheme.typography.bodySmall, color = FaccioTeal) }
@@ -2732,7 +2987,8 @@ private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
     var next = task.copy(
         completed = false,
         arrivalReminderId = null,
-        routineSteps = task.routineSteps.map { it.copy(completed = false) }
+        routineSteps = task.routineSteps.map { it.copy(completed = false) },
+        shoppingItems = task.shoppingItems.map { it.copy(completed = false) }
     )
     do {
         next = next.copy(
@@ -3164,6 +3420,16 @@ internal fun parseTasks(
                             completed = step.optBoolean("completed", false)
                         )
                     }.filter { it.title.isNotBlank() }
+                }.orEmpty(),
+                shoppingListEnabled = item.optBoolean("shoppingListEnabled", false),
+                shoppingItems = item.optJSONArray("shoppingItems")?.let { items ->
+                    List(items.length()) { itemIndex ->
+                        val shoppingItem = items.getJSONObject(itemIndex)
+                        ShoppingItem(
+                            title = shoppingItem.optString("title"),
+                            completed = shoppingItem.optBoolean("completed", false)
+                        )
+                    }.filter { it.title.isNotBlank() }
                 }.orEmpty()
             )
         }
@@ -3215,6 +3481,20 @@ internal fun serializeTasks(tasks: List<TaskItem>): String {
                                 JSONObject().apply {
                                     put("title", step.title)
                                     put("completed", step.completed)
+                                }
+                            )
+                        }
+                    }
+                )
+                put("shoppingListEnabled", task.shoppingListEnabled)
+                put(
+                    "shoppingItems",
+                    JSONArray().apply {
+                        task.shoppingItems.forEach { item ->
+                            put(
+                                JSONObject().apply {
+                                    put("title", item.title)
+                                    put("completed", item.completed)
                                 }
                             )
                         }
