@@ -115,7 +115,9 @@ data class TaskItem(
     val departureTravelMinutes: Int? = null,
     val departureMarginMinutes: Int? = null,
     val departureTransport: String = "Auto",
-    val departureSafety: String = "Normale"
+    val departureSafety: String = "Normale",
+    val recurrence: String = "Mai",
+    val recurrenceIntervalDays: Int = 1
 )
 
 data class ResolvedPlace(
@@ -128,6 +130,7 @@ internal const val TASK_PREFS = "faccio_io_tasks"
 internal const val TASKS_KEY = "saved_tasks"
 private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
+private val TASK_RECURRENCES = listOf("Mai", "Ogni giorno", "Ogni settimana", "Ogni mese", "Personalizzata")
 private val APPOINTMENT_REMINDER_OPTIONS = listOf(
     "24 ore prima",
     "48 ore prima",
@@ -153,6 +156,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var editedPriority by rememberSaveable { mutableStateOf("Media") }
     var editedAppointmentTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editedRecurrence by rememberSaveable { mutableStateOf("Mai") }
+    var editedRecurrenceDays by rememberSaveable { mutableStateOf("1") }
     var categoryFilter by rememberSaveable { mutableStateOf("Tutte") }
     var priorityFilter by rememberSaveable { mutableStateOf("Tutte") }
     var showAssistant by rememberSaveable { mutableStateOf(false) }
@@ -170,6 +175,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var assistantPriority by rememberSaveable { mutableStateOf("Media") }
     var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
+    var taskRecurrenceDays by rememberSaveable { mutableStateOf("1") }
     var taskLocationQuery by rememberSaveable { mutableStateOf("") }
     var taskResolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
     var taskPlaceMessage by rememberSaveable { mutableStateOf("") }
@@ -202,7 +209,9 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     fun addPendingTask(
         reminderTime: Long? = null,
         place: ResolvedPlace? = null,
-        arrivalId: String? = null
+        arrivalId: String? = null,
+        recurrence: String = "Mai",
+        recurrenceDays: Int = 1
     ) {
         tasks.add(
             TaskItem(
@@ -213,7 +222,9 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 location = place?.address,
                 latitude = place?.latitude,
                 longitude = place?.longitude,
-                arrivalReminderId = arrivalId
+                arrivalReminderId = arrivalId,
+                recurrence = recurrence,
+                recurrenceIntervalDays = recurrenceDays
             )
         )
         saveTasks(context, tasks)
@@ -226,6 +237,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         showReminderChoice = false
         taskReminderMode = "Nessuno"
         taskReminderTime = null
+        taskRecurrence = "Mai"
+        taskRecurrenceDays = "1"
         taskLocationQuery = ""
         taskResolvedPlace = null
         taskPlaceMessage = ""
@@ -285,8 +298,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             TodayAgenda(
                 tasks = tasks,
                 onCompletedChange = { index, completed ->
-                    tasks[index] = tasks[index].copy(completed = completed)
-                    saveTasks(context, tasks)
+                    updateTaskCompletion(context, tasks, index, completed)
                 },
                 onOpenMap = { task ->
                     openPlaceOnMap(
@@ -346,6 +358,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     pendingPriority = selectedPriority
                     taskReminderMode = "Nessuno"
                     taskReminderTime = null
+                    taskRecurrence = "Mai"
+                    taskRecurrenceDays = "1"
                     taskLocationQuery = ""
                     taskResolvedPlace = null
                     showReminderChoice = true
@@ -434,8 +448,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             Checkbox(
                                 checked = task.completed,
                                 onCheckedChange = { checked ->
-                                    tasks[index] = task.copy(completed = checked)
-                                    saveTasks(context, tasks)
+                                    updateTaskCompletion(context, tasks, index, checked)
                                 }
                             )
 
@@ -465,6 +478,12 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 task.location?.let { location ->
                                     Text(
                                         text = "Luogo: $location",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                if (task.recurrence != "Mai") {
+                                    Text(
+                                        text = recurrenceLabel(task),
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -548,6 +567,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     editedPriority = task.priority
                                     editedAppointmentTime = task.appointmentTime
                                     editedReminderTime = task.reminderTime
+                                    editedRecurrence = task.recurrence
+                                    editedRecurrenceDays = task.recurrenceIntervalDays.toString()
                                 }
                             ) {
                                 Text("Modifica")
@@ -878,7 +899,27 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         onValueSelected = { taskReminderMode = it },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (taskReminderMode == "Data e ora" || taskReminderMode == "Entrambi") {
+                    SelectionMenu(
+                        label = "Ripetizione",
+                        selectedValue = taskRecurrence,
+                        values = TASK_RECURRENCES,
+                        onValueSelected = { taskRecurrence = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (taskRecurrence == "Personalizzata") {
+                        OutlinedTextField(
+                            value = taskRecurrenceDays,
+                            onValueChange = { taskRecurrenceDays = it.filter(Char::isDigit).take(3) },
+                            label = { Text("Ripeti ogni quanti giorni?") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (
+                        taskReminderMode == "Data e ora" ||
+                        taskReminderMode == "Entrambi" ||
+                        taskRecurrence != "Mai"
+                    ) {
                         OutlinedButton(
                             onClick = { showReminderPicker(context) { taskReminderTime = it } },
                             modifier = Modifier.fillMaxWidth()
@@ -916,8 +957,13 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val needsTime = taskReminderMode == "Data e ora" || taskReminderMode == "Entrambi"
+                        val needsTime = taskReminderMode == "Data e ora" ||
+                            taskReminderMode == "Entrambi" || taskRecurrence != "Mai"
                         val needsPlace = taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi"
+                        val recurrenceDays = taskRecurrenceDays.toIntOrNull() ?: 0
+                        if (taskRecurrence == "Personalizzata" && recurrenceDays !in 1..365) {
+                            Toast.makeText(context, "Inserisci un intervallo da 1 a 365 giorni", Toast.LENGTH_LONG).show(); return@TextButton
+                        }
                         if (needsTime && (taskReminderTime == null || taskReminderTime!! <= System.currentTimeMillis())) {
                             Toast.makeText(context, "Scegli un orario futuro", Toast.LENGTH_LONG).show(); return@TextButton
                         }
@@ -930,11 +976,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             if (!ensureLocationPermissions(context)) return@TextButton
                             val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
                             registerArrivalGeofence(context, id, pendingTask, place!!.latitude, place.longitude) { ok ->
-                                if (ok) addPendingTask(taskReminderTime, place, id)
+                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays.coerceAtLeast(1))
                                 else Toast.makeText(context, "Attivazione del luogo non riuscita", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            addPendingTask(taskReminderTime)
+                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays.coerceAtLeast(1))
                         }
                     }
                 ) { Text("Salva attività") }
@@ -1010,6 +1056,22 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             onValueSelected = { editedPriority = it },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        SelectionMenu(
+                            label = "Ripetizione",
+                            selectedValue = editedRecurrence,
+                            values = TASK_RECURRENCES,
+                            onValueSelected = { editedRecurrence = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (editedRecurrence == "Personalizzata") {
+                            OutlinedTextField(
+                                value = editedRecurrenceDays,
+                                onValueChange = { editedRecurrenceDays = it.filter(Char::isDigit).take(3) },
+                                label = { Text("Ripeti ogni quanti giorni?") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 },
                 confirmButton = {
@@ -1023,6 +1085,15 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
+                                val recurrenceDays = editedRecurrenceDays.toIntOrNull() ?: 0
+                                if (editedRecurrence == "Personalizzata" && recurrenceDays !in 1..365) {
+                                    Toast.makeText(context, "Inserisci un intervallo da 1 a 365 giorni", Toast.LENGTH_LONG).show()
+                                    return@TextButton
+                                }
+                                if (editedRecurrence != "Mai" && editedReminderTime == null && task.appointmentTime == null) {
+                                    Toast.makeText(context, "Una ripetizione richiede una data e un orario", Toast.LENGTH_LONG).show()
+                                    return@TextButton
+                                }
                                 val now = System.currentTimeMillis()
                                 val newAppointmentTime =
                                     editedAppointmentTime ?: task.appointmentTime
@@ -1082,7 +1153,9 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     category = editedCategory,
                                     priority = editedPriority,
                                     appointmentTime = newAppointmentTime,
-                                    reminderTime = newReminderTime
+                                    reminderTime = newReminderTime,
+                                    recurrence = editedRecurrence,
+                                    recurrenceIntervalDays = recurrenceDays.coerceAtLeast(1)
                                 )
                                 saveTasks(context, tasks)
                                 editingIndex = null
@@ -1286,6 +1359,9 @@ private fun AgendaTaskCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = priorityColor(task.priority)
                 )
+                if (task.recurrence != "Mai") {
+                    Text(recurrenceLabel(task), style = MaterialTheme.typography.bodySmall)
+                }
                 task.departureTime?.let { Text("Partenza: ${formatHour(it)}", style = MaterialTheme.typography.bodySmall) }
                 task.location?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (task.location != null) {
@@ -1322,6 +1398,66 @@ private fun agendaTimeText(task: TaskItem, time: Long): String =
 
 private fun formatHour(time: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
+
+private fun recurrenceLabel(task: TaskItem): String = when (task.recurrence) {
+    "Personalizzata" -> "Si ripete ogni ${task.recurrenceIntervalDays} giorni"
+    "Mai" -> ""
+    else -> "Si ripete: ${task.recurrence.lowercase(Locale.ITALIAN)}"
+}
+
+private fun updateTaskCompletion(
+    context: Context,
+    tasks: MutableList<TaskItem>,
+    index: Int,
+    completed: Boolean
+) {
+    val task = tasks.getOrNull(index) ?: return
+    if (!completed || task.recurrence == "Mai") {
+        tasks[index] = task.copy(completed = completed)
+        saveTasks(context, tasks)
+        return
+    }
+
+    cancelReminder(context, task)
+    cancelDepartureReminder(context, task)
+    task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
+
+    val next = nextRecurringOccurrence(task, System.currentTimeMillis())
+    next.reminderTime?.let { scheduleReminder(context, next.title, it) }
+    next.departureTime?.let {
+        scheduleReminder(context, "È ora di partire: ${next.title}", it)
+    }
+    tasks[index] = next
+    saveTasks(context, tasks)
+    Toast.makeText(
+        context,
+        "Completata. Prossima: ${formatReminderTime(next.appointmentTime ?: next.reminderTime!!)}",
+        Toast.LENGTH_SHORT
+    ).show()
+}
+
+private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
+    var next = task.copy(completed = false, arrivalReminderId = null)
+    do {
+        next = next.copy(
+            reminderTime = next.reminderTime?.let { shiftRecurringTime(it, next) },
+            appointmentTime = next.appointmentTime?.let { shiftRecurringTime(it, next) },
+            departureTime = next.departureTime?.let { shiftRecurringTime(it, next) }
+        )
+    } while ((next.appointmentTime ?: next.reminderTime ?: Long.MAX_VALUE) <= now)
+    return next
+}
+
+private fun shiftRecurringTime(time: Long, task: TaskItem): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = time
+        when (task.recurrence) {
+            "Ogni giorno" -> add(Calendar.DAY_OF_YEAR, 1)
+            "Ogni settimana" -> add(Calendar.WEEK_OF_YEAR, 1)
+            "Ogni mese" -> add(Calendar.MONTH, 1)
+            "Personalizzata" -> add(Calendar.DAY_OF_YEAR, task.recurrenceIntervalDays.coerceAtLeast(1))
+        }
+    }.timeInMillis
 
 private fun showReminderPicker(
     context: Context,
@@ -1608,7 +1744,9 @@ private fun parseTasks(
                 departureTravelMinutes = if (item.isNull("departureTravelMinutes")) null else item.optInt("departureTravelMinutes"),
                 departureMarginMinutes = if (item.isNull("departureMarginMinutes")) null else item.optInt("departureMarginMinutes"),
                 departureTransport = item.optString("departureTransport", "Auto"),
-                departureSafety = item.optString("departureSafety", "Normale")
+                departureSafety = item.optString("departureSafety", "Normale"),
+                recurrence = item.optString("recurrence", "Mai"),
+                recurrenceIntervalDays = item.optInt("recurrenceIntervalDays", 1).coerceAtLeast(1)
             )
         }
     } catch (_: Exception) {
@@ -1636,6 +1774,8 @@ internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("departureMarginMinutes", task.departureMarginMinutes ?: JSONObject.NULL)
                 put("departureTransport", task.departureTransport)
                 put("departureSafety", task.departureSafety)
+                put("recurrence", task.recurrence)
+                put("recurrenceIntervalDays", task.recurrenceIntervalDays)
             }
         )
     }
