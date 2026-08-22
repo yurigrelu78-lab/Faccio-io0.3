@@ -34,6 +34,15 @@ fun parseAppointment(
     }
 
     val dateMatch = Regex("\\b(\\d{1,2})[/-](\\d{1,2})(?:[/-](\\d{2,4}))?\\b").find(lower)
+    val monthNames = listOf(
+        "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+        "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
+    )
+    val textDateMatch = Regex(
+        "\\b(?:il\\s+)?(\\d{1,2})\\s+(${monthNames.joinToString("|")})(?:\\s+(\\d{4}))?\\b",
+        RegexOption.IGNORE_CASE
+    ).find(lower)
+    var absoluteDateWithoutYear = false
     when {
         dateMatch != null -> {
             val day = dateMatch.groupValues[1].toInt()
@@ -45,6 +54,17 @@ fun parseAppointment(
                 else -> yearText.toInt()
             }
             result.set(year, month, day)
+            absoluteDateWithoutYear = yearText.isBlank()
+        }
+        textDateMatch != null -> {
+            val day = textDateMatch.groupValues[1].toInt()
+            val month = monthNames.indexOf(
+                textDateMatch.groupValues[2].lowercase(Locale.ITALIAN)
+            )
+            val yearText = textDateMatch.groupValues[3]
+            val year = yearText.toIntOrNull() ?: now.get(Calendar.YEAR)
+            result.set(year, month, day)
+            absoluteDateWithoutYear = yearText.isBlank()
         }
         "dopodomani" in lower -> result.add(Calendar.DAY_OF_YEAR, 2)
         "domani" in lower -> result.add(Calendar.DAY_OF_YEAR, 1)
@@ -66,6 +86,9 @@ fun parseAppointment(
 
     result.set(Calendar.HOUR_OF_DAY, timeMatch.groupValues[1].toInt())
     result.set(Calendar.MINUTE, timeMatch.groupValues[2].toIntOrNull() ?: 0)
+    if (absoluteDateWithoutYear && result.timeInMillis <= now.timeInMillis) {
+        result.add(Calendar.YEAR, 1)
+    }
     if (result.timeInMillis <= now.timeInMillis && "oggi" in lower) return null
 
     val locationMatch = Regex(
@@ -79,6 +102,7 @@ fun parseAppointment(
 
     var title = original
         .replace(dateMatch?.value ?: "", "", ignoreCase = true)
+        .replace(textDateMatch?.value ?: "", "", ignoreCase = true)
         .replace(timeMatch.value, "", ignoreCase = true)
         .replace(Regex("\\b(?:oggi|domani|dopodomani|lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica)\\b", RegexOption.IGNORE_CASE), "")
     if (locationMatch != null) title = title.replace(locationMatch.value, "", ignoreCase = true)
