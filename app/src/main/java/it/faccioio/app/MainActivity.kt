@@ -18,7 +18,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -107,6 +107,9 @@ fun FaccioIoApp() {
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
     var showReminderChoice by rememberSaveable { mutableStateOf(false) }
+    var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var deletingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var editedTitle by rememberSaveable { mutableStateOf("") }
 
     val tasks = remember(context) {
         mutableStateListOf<TaskItem>().apply {
@@ -178,29 +181,46 @@ fun FaccioIoApp() {
         Spacer(modifier = Modifier.height(8.dp))
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(tasks) { task ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = task.completed,
-                        onCheckedChange = { checked ->
-                            val index = tasks.indexOf(task)
-                            if (index >= 0) {
-                                tasks[index] = task.copy(completed = checked)
-                                saveTasks(context, tasks)
+            itemsIndexed(tasks) { index, task ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = task.completed,
+                                onCheckedChange = { checked ->
+                                    tasks[index] = task.copy(completed = checked)
+                                    saveTasks(context, tasks)
+                                }
+                            )
+
+                            Column(modifier = Modifier.padding(start = 8.dp)) {
+                                Text(text = task.title)
+                                task.reminderTime?.let { selectedTime ->
+                                    Text(
+                                        text = "Promemoria: ${formatReminderTime(selectedTime)}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                         }
-                    )
 
-                    Column(modifier = Modifier.padding(start = 8.dp)) {
-                        Text(text = task.title)
-                        task.reminderTime?.let { selectedTime ->
-                            Text(
-                                text = "Promemoria: ${formatReminderTime(selectedTime)}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        Row(
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    editingIndex = index
+                                    editedTitle = task.title
+                                }
+                            ) {
+                                Text("Modifica")
+                            }
+                            TextButton(onClick = { deletingIndex = index }) {
+                                Text("Elimina")
+                            }
                         }
                     }
                 }
@@ -250,6 +270,116 @@ fun FaccioIoApp() {
                 }
             }
         )
+    }
+
+    editingIndex?.let { index ->
+        val task = tasks.getOrNull(index)
+        if (task != null) {
+            AlertDialog(
+                onDismissRequest = { editingIndex = null },
+                title = { Text("Modifica attività") },
+                text = {
+                    OutlinedTextField(
+                        value = editedTitle,
+                        onValueChange = { editedTitle = it },
+                        label = { Text("Nome attività") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val newTitle = editedTitle.trim()
+                            if (newTitle.isEmpty()) {
+                                Toast.makeText(
+                                    context,
+                                    "Il nome non può essere vuoto",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                val reminderTime = task.reminderTime
+                                val reminderStillActive =
+                                    reminderTime != null &&
+                                        reminderTime > System.currentTimeMillis()
+
+                                if (
+                                    reminderStillActive &&
+                                    newTitle != task.title &&
+                                    reminderTime != null
+                                ) {
+                                    if (!scheduleReminder(context, newTitle, reminderTime)) {
+                                        return@TextButton
+                                    }
+                                    cancelReminder(context, task)
+                                }
+
+                                tasks[index] = task.copy(title = newTitle)
+                                saveTasks(context, tasks)
+                                editingIndex = null
+                                editedTitle = ""
+                                Toast.makeText(
+                                    context,
+                                    "Attività aggiornata",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    ) {
+                        Text("Salva")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingIndex = null }) {
+                        Text("Annulla")
+                    }
+                }
+            )
+        } else {
+            editingIndex = null
+        }
+    }
+
+    deletingIndex?.let { index ->
+        val task = tasks.getOrNull(index)
+        if (task != null) {
+            AlertDialog(
+                onDismissRequest = { deletingIndex = null },
+                title = { Text("Eliminare l’attività?") },
+                text = {
+                    Text(
+                        if (task.reminderTime != null) {
+                            "Verrà cancellato anche il promemoria associato."
+                        } else {
+                            "Questa operazione non può essere annullata."
+                        }
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            cancelReminder(context, task)
+                            tasks.removeAt(index)
+                            saveTasks(context, tasks)
+                            deletingIndex = null
+                            Toast.makeText(
+                                context,
+                                "Attività eliminata",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    ) {
+                        Text("Elimina")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deletingIndex = null }) {
+                        Text("Annulla")
+                    }
+                }
+            )
+        } else {
+            deletingIndex = null
+        }
     }
 }
 
@@ -318,8 +448,7 @@ private fun scheduleReminder(
     val reminderIntent = Intent(context, ReminderReceiver::class.java).apply {
         putExtra("task_title", taskTitle)
     }
-    val requestCode =
-        (reminderTime xor taskTitle.hashCode().toLong()).hashCode()
+    val requestCode = reminderRequestCode(taskTitle, reminderTime)
     val pendingIntent = PendingIntent.getBroadcast(
         context,
         requestCode,
@@ -343,6 +472,25 @@ private fun scheduleReminder(
         false
     }
 }
+
+private fun cancelReminder(context: Context, task: TaskItem) {
+    val reminderTime = task.reminderTime ?: return
+    val reminderIntent = Intent(context, ReminderReceiver::class.java)
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        reminderRequestCode(task.title, reminderTime),
+        reminderIntent,
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+    ) ?: return
+
+    val alarmManager =
+        context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    alarmManager.cancel(pendingIntent)
+    pendingIntent.cancel()
+}
+
+private fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
+    (reminderTime xor taskTitle.hashCode().toLong()).hashCode()
 
 private fun formatReminderTime(time: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
