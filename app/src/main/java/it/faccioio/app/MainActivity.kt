@@ -974,7 +974,6 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
 
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            }
         }
     }
 
