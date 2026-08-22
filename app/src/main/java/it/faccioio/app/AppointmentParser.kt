@@ -66,8 +66,13 @@ fun parseAppointment(
     result.set(Calendar.MINUTE, timeMatch.groupValues[2].toIntOrNull() ?: 0)
     if (result.timeInMillis <= now.timeInMillis && "oggi" in lower) return null
 
-    val locationMatch = Regex("\\b(?:presso|in|a)\\s+(.+)$", RegexOption.IGNORE_CASE)
-        .find(original)
+    val locationMatch = Regex(
+        "\\b(?:presso|in|a)\\s+(.+)$",
+        RegexOption.IGNORE_CASE
+    ).find(original) ?: Regex(
+        "\\b((?:via|viale|piazza|piazzale|corso|largo|vicolo|strada|lungomare|località)\\s+.+)$",
+        RegexOption.IGNORE_CASE
+    ).find(original)
     val location = locationMatch?.groupValues?.get(1)?.trim(' ', '.', ',')
 
     var title = original
