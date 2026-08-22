@@ -25,8 +25,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -122,6 +124,13 @@ internal const val TASK_PREFS = "faccio_io_tasks"
 internal const val TASKS_KEY = "saved_tasks"
 private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
+private val APPOINTMENT_REMINDER_OPTIONS = listOf(
+    "24 ore prima",
+    "48 ore prima",
+    "7 giorni prima",
+    "Personalizzato",
+    "Nessun promemoria"
+)
 
 @Composable
 fun FaccioIoApp() {
@@ -145,6 +154,12 @@ fun FaccioIoApp() {
     var assistantResult by remember { mutableStateOf<ParsedAppointment?>(null) }
     var resolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
     var placeLookupMessage by remember { mutableStateOf("") }
+    var appointmentReminderOption by rememberSaveable {
+        mutableStateOf("24 ore prima")
+    }
+    var customAppointmentReminderTime by rememberSaveable {
+        mutableStateOf<Long?>(null)
+    }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -466,6 +481,11 @@ fun FaccioIoApp() {
     }
 
     assistantResult?.let { appointment ->
+        LaunchedEffect(appointment.time) {
+            appointmentReminderOption = "24 ore prima"
+            customAppointmentReminderTime = null
+        }
+
         LaunchedEffect(appointment.location) {
             resolvedPlace = null
             val location = appointment.location
@@ -488,7 +508,10 @@ fun FaccioIoApp() {
             onDismissRequest = { assistantResult = null },
             title = { Text("Conferma appuntamento") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text("Attività: ${appointment.title}")
                     Text("Quando: ${formatReminderTime(appointment.time)}")
                     Text(
@@ -513,43 +536,90 @@ fun FaccioIoApp() {
                             Text("Controlla sulla mappa")
                         }
                     }
+                    SelectionMenu(
+                        label = "Promemoria",
+                        selectedValue = appointmentReminderOption,
+                        values = APPOINTMENT_REMINDER_OPTIONS,
+                        onValueSelected = {
+                            appointmentReminderOption = it
+                            if (it != "Personalizzato") {
+                                customAppointmentReminderTime = null
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (appointmentReminderOption == "Personalizzato") {
+                        OutlinedButton(
+                            onClick = {
+                                showReminderPicker(context) { selectedTime ->
+                                    customAppointmentReminderTime = selectedTime
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                customAppointmentReminderTime?.let {
+                                    "Promemoria: ${formatReminderTime(it)}"
+                                } ?: "Scegli data e ora"
+                            )
+                        }
+                    } else {
+                        appointmentReminderTime(
+                            appointment.time,
+                            appointmentReminderOption,
+                            null
+                        )?.let { reminderTime ->
+                            Text(
+                                "Il promemoria arriverà: ${formatReminderTime(reminderTime)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
                     Text("Controlla i dati prima di salvare.")
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (scheduleReminder(context, appointment.title, appointment.time)) {
-                            tasks.add(
-                                TaskItem(
-                                    title = appointment.title,
-                                    reminderTime = appointment.time,
-                                    category = "Personale",
-                                    priority = "Media",
-                                    appointmentTime = appointment.time,
-                                    location = resolvedPlace?.address ?: appointment.location,
-                                    latitude = resolvedPlace?.latitude,
-                                    longitude = resolvedPlace?.longitude
-                                )
-                            )
-                            saveTasks(context, tasks)
-                            assistantText = ""
-                            assistantResult = null
+                        val reminderTime = appointmentReminderTime(
+                            appointment.time,
+                            appointmentReminderOption,
+                            customAppointmentReminderTime
+                        )
+                        val wantsReminder =
+                            appointmentReminderOption != "Nessun promemoria"
+
+                        if (wantsReminder && reminderTime == null) {
                             Toast.makeText(
                                 context,
-                                "Appuntamento e promemoria aggiunti",
-                                Toast.LENGTH_SHORT
+                                "Scegli data e ora del promemoria",
+                                Toast.LENGTH_LONG
                             ).show()
+                            return@TextButton
                         }
-                    }
-                ) { Text("Salva con promemoria") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
+                        if (
+                            reminderTime != null &&
+                            (reminderTime <= System.currentTimeMillis() ||
+                                reminderTime >= appointment.time)
+                        ) {
+                            Toast.makeText(
+                                context,
+                                "Il promemoria deve essere futuro e precedente all’appuntamento",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@TextButton
+                        }
+                        if (
+                            reminderTime != null &&
+                            !scheduleReminder(context, appointment.title, reminderTime)
+                        ) {
+                            return@TextButton
+                        }
+
                         tasks.add(
                             TaskItem(
                                 title = appointment.title,
+                                reminderTime = reminderTime,
                                 category = "Personale",
                                 priority = "Media",
                                 appointmentTime = appointment.time,
@@ -563,11 +633,20 @@ fun FaccioIoApp() {
                         assistantResult = null
                         Toast.makeText(
                             context,
-                            "Appuntamento aggiunto",
+                            if (reminderTime == null) {
+                                "Appuntamento aggiunto"
+                            } else {
+                                "Appuntamento e promemoria aggiunti"
+                            },
                             Toast.LENGTH_SHORT
                         ).show()
                     }
-                ) { Text("Salva senza promemoria") }
+                ) { Text("Salva appuntamento") }
+            },
+            dismissButton = {
+                TextButton(onClick = { assistantResult = null }) {
+                    Text("Annulla")
+                }
             }
         )
     }
@@ -776,6 +855,24 @@ private fun showReminderPicker(
         initialCalendar.get(Calendar.MONTH),
         initialCalendar.get(Calendar.DAY_OF_MONTH)
     ).show()
+}
+
+private fun appointmentReminderTime(
+    appointmentTime: Long,
+    option: String,
+    customTime: Long?
+): Long? {
+    if (option == "Nessun promemoria") return null
+    if (option == "Personalizzato") return customTime
+
+    return Calendar.getInstance().apply {
+        timeInMillis = appointmentTime
+        when (option) {
+            "48 ore prima" -> add(Calendar.HOUR_OF_DAY, -48)
+            "7 giorni prima" -> add(Calendar.DAY_OF_YEAR, -7)
+            else -> add(Calendar.HOUR_OF_DAY, -24)
+        }
+    }.timeInMillis
 }
 
 private fun scheduleReminder(
