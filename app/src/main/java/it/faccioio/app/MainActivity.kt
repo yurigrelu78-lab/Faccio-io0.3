@@ -162,10 +162,25 @@ Spacer(modifier = Modifier.height(8.dp))
     context,
     ReminderReceiver::class.java
 ).apply {
-    putExtra("task_title", "TEST PROMEMORIA")
+    putExtra("task_title", "TEST PROGRAMMATO 60 SECONDI")
 }
 
-context.sendBroadcast(testIntent)
+val testPendingIntent = PendingIntent.getBroadcast(
+    context,
+    9999,
+    testIntent,
+    PendingIntent.FLAG_UPDATE_CURRENT or
+        PendingIntent.FLAG_IMMUTABLE
+)
+
+val testAlarmManager =
+    context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+testAlarmManager.setExactAndAllowWhileIdle(
+    AlarmManager.RTC_WAKEUP,
+    System.currentTimeMillis() + 60_000,
+    testPendingIntent
+)
 
                 if (text.isNotEmpty()) {
 
