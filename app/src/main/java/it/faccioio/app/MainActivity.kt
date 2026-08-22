@@ -2337,6 +2337,7 @@ internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
         .apply()
 
     mirrorTasksForBoot(context, savedJson)
+    AgendaWidgetProvider.updateAll(context)
 }
 
 private fun mirrorTasksForBoot(context: Context, savedJson: String) {
