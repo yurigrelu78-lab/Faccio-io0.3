@@ -207,6 +207,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var showTaskSearch by rememberSaveable { mutableStateOf(false) }
     var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
+    var showHelpGuide by rememberSaveable { mutableStateOf(false) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
     var customRoutineName by rememberSaveable { mutableStateOf("") }
     var customRoutineCategory by rememberSaveable { mutableStateOf("Personale") }
@@ -943,6 +944,49 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
+                                .background(FaccioTeal)
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Guida e assistenza",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Scopri rapidamente come utilizzare tutte le funzioni dell’app.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                            OutlinedButton(
+                                onClick = { showHelpGuide = true },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = FaccioNavy
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(
+                                    horizontal = 14.dp,
+                                    vertical = 7.dp
+                                )
+                            ) { Text("Apri la guida") }
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = FaccioCard),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
@@ -975,6 +1019,92 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
         }
+    }
+
+    if (showHelpGuide) {
+        AlertDialog(
+            onDismissRequest = { showHelpGuide = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            tonalElevation = 3.dp,
+            titleContentColor = FaccioNavy,
+            textContentColor = FaccioMutedText,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 5.dp, height = 34.dp)
+                            .background(FaccioTeal, RoundedCornerShape(50))
+                    )
+                    Column {
+                        Text(
+                            "Guida di Faccio io",
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioNavy
+                        )
+                        Text(
+                            "Tutte le funzioni, spiegate in breve",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FaccioMutedText
+                        )
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    GuideTopic(
+                        "Attività",
+                        "Apri Attività, scrivi cosa devi fare, scegli categoria e priorità, quindi tocca Aggiungi. Puoi modificare, completare o eliminare ogni attività."
+                    )
+                    GuideTopic(
+                        "Promemoria e ripetizioni",
+                        "Durante la creazione puoi scegliere data e ora del promemoria, durata e frequenza. Per gli avvisi precisi devono essere abilitate notifiche e sveglie."
+                    )
+                    GuideTopic(
+                        "Assistente IA",
+                        "Scrivi o detta una frase completa, per esempio “Domani alle 15 dentista in via Roma 10”. Controlla i dati riconosciuti prima di salvare."
+                    )
+                    GuideTopic(
+                        "Routine",
+                        "In Strumenti scegli una routine pronta oppure creane una personale. I passaggi possono essere completati uno alla volta e riutilizzati."
+                    )
+                    GuideTopic(
+                        "Luoghi e partenza",
+                        "Associa un indirizzo all’attività. Con la posizione autorizzata, Faccio io può stimare il viaggio e suggerire quando partire."
+                    )
+                    GuideTopic(
+                        "Ricerca e filtri",
+                        "Usa la lente per cercare un’attività. Nella sezione Attività puoi filtrare l’elenco per categoria e priorità."
+                    )
+                    GuideTopic(
+                        "Backup",
+                        "Da Strumenti puoi esportare attività, promemoria e routine in un file. Ripristina conserva il contenuto del backup e sostituisce i dati presenti."
+                    )
+                    GuideTopic(
+                        "Widget",
+                        "Tieni premuto uno spazio libero nella Home, scegli Widget e cerca Faccio io. Il widget mostra attività di oggi e prossimo impegno."
+                    )
+                    GuideTopic(
+                        "Permessi e funzionamento",
+                        "In Strumenti apri Configurazione per controllare notifiche, posizione, batteria e attività in background."
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showHelpGuide = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 7.dp)
+                ) { Text("Ho capito") }
+            }
+        )
     }
 
     if (showAssistant) {
@@ -2151,6 +2281,33 @@ private fun taskCategoryColor(category: String): Color = when (category) {
     "Casa" -> FaccioAmber
     "Lavoro" -> FaccioTeal
     else -> Color(0xFF3978C5)
+}
+
+@Composable
+private fun GuideTopic(title: String, description: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = FaccioCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = FaccioNavy
+            )
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = FaccioMutedText
+            )
+        }
+    }
 }
 
 @Composable
