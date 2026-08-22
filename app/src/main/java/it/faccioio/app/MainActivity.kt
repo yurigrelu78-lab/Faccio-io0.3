@@ -1297,6 +1297,9 @@ private fun TodayAgenda(
     onOpenMap: (TaskItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var routePlan by remember { mutableStateOf<RoutePlan?>(null) }
+    var routeLoading by remember { mutableStateOf(false) }
     val now = System.currentTimeMillis()
     val todayCalendar = Calendar.getInstance()
     val scheduled = tasks.mapIndexedNotNull { index, task ->
@@ -1325,6 +1328,9 @@ private fun TodayAgenda(
     }.toSet()
     val totalMinutes = scheduled.sumOf { it.task.durationMinutes } +
         unscheduled.sumOf { it.second.durationMinutes }
+    val routeCandidates = (scheduled.map { it.task } + unscheduled.map { it.second })
+        .distinct()
+        .filter { it.latitude != null && it.longitude != null && !it.completed }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -1341,6 +1347,45 @@ private fun TodayAgenda(
                 text = agendaSummary(scheduled, unscheduled.size, totalMinutes),
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+
+        if (routeCandidates.size >= 2) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Giro di oggi", fontWeight = FontWeight.Bold)
+                        Text("${routeCandidates.size} tappe con un luogo. L’ordine proposto riduce la distanza dalla posizione attuale.")
+                        OutlinedButton(
+                            onClick = {
+                                routeLoading = true
+                                optimizeRouteFromCurrentLocation(context, routeCandidates) {
+                                    routePlan = it
+                                    routeLoading = false
+                                    if (it == null) {
+                                        Toast.makeText(context, "Posizione attuale non disponibile", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            enabled = !routeLoading,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (routeLoading) "Calcolo in corso…" else "Organizza il giro") }
+                        routePlan?.let { plan ->
+                            Text("Distanza diretta stimata: ${String.format(Locale.ITALIAN, "%.1f", plan.directKilometers)} km")
+                            plan.stops.forEachIndexed { index, task ->
+                                Text("${index + 1}. ${task.title}")
+                            }
+                            Button(
+                                onClick = { openRouteInGoogleMaps(context, plan) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Apri percorso in Google Maps") }
+                            Text(
+                                "Google Maps calcolerà strade e tempi reali. Controlla sempre gli orari fissi degli appuntamenti.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         if (nextEntry != null) {
