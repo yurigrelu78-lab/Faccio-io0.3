@@ -244,25 +244,28 @@ try {
         )
 
         val alarmManager =
-    context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-val showIntent = PendingIntent.getActivity(
-    context,
-    requestCode + 1,
-    Intent(context, MainActivity::class.java),
-    PendingIntent.FLAG_UPDATE_CURRENT or
-        PendingIntent.FLAG_IMMUTABLE
-)
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                selectedReminder,
+                pendingIntent
+            )
 
-val alarmClockInfo = AlarmManager.AlarmClockInfo(
-    selectedReminder,
-    showIntent
-)
-
-alarmManager.setAlarmClock(
-    alarmClockInfo,
-    pendingIntent
-)
+            android.widget.Toast.makeText(
+                context,
+                "Promemoria programmato",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        } catch (_: SecurityException) {
+            android.widget.Toast.makeText(
+                context,
+                "Autorizza sveglie e promemoria nelle impostazioni",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return@addTask
+        }
     }
 
     tasks.add(
