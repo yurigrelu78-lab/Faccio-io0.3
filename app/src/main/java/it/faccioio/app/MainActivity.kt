@@ -18,7 +18,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -120,11 +120,19 @@ fun FaccioIoApp() {
     var editedTitle by rememberSaveable { mutableStateOf("") }
     var editedCategory by rememberSaveable { mutableStateOf("Personale") }
     var editedPriority by rememberSaveable { mutableStateOf("Media") }
+    var categoryFilter by rememberSaveable { mutableStateOf("Tutte") }
+    var priorityFilter by rememberSaveable { mutableStateOf("Tutte") }
 
     val tasks = remember(context) {
         mutableStateListOf<TaskItem>().apply {
             addAll(loadTasks(context))
         }
+    }
+
+    val visibleTasks = tasks.withIndex().filter { indexedTask ->
+        val task = indexedTask.value
+        (categoryFilter == "Tutte" || task.category == categoryFilter) &&
+            (priorityFilter == "Tutte" || task.priority == priorityFilter)
     }
 
     fun addPendingTask(reminderTime: Long? = null) {
@@ -225,8 +233,53 @@ fun FaccioIoApp() {
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SelectionMenu(
+                label = "Categoria",
+                selectedValue = categoryFilter,
+                values = listOf("Tutte") + TASK_CATEGORIES,
+                onValueSelected = { categoryFilter = it },
+                modifier = Modifier.weight(1f)
+            )
+            SelectionMenu(
+                label = "Priorità",
+                selectedValue = priorityFilter,
+                values = listOf("Tutte") + TASK_PRIORITIES,
+                onValueSelected = { priorityFilter = it },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        if (categoryFilter != "Tutte" || priorityFilter != "Tutte") {
+            TextButton(
+                onClick = {
+                    categoryFilter = "Tutte"
+                    priorityFilter = "Tutte"
+                },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Azzera filtri")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            itemsIndexed(tasks) { index, task ->
+            if (visibleTasks.isEmpty()) {
+                item {
+                    Text(
+                        text = "Nessuna attività corrisponde ai filtri selezionati.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            items(visibleTasks) { indexedTask ->
+                val index = indexedTask.index
+                val task = indexedTask.value
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(8.dp)) {
                         Row(
