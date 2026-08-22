@@ -20,6 +20,16 @@
         <receiver android:name=".SnoozeReceiver" android:exported="false" />
         <receiver android:name=".GeofenceReceiver" android:exported="false" />
         <receiver
+            android:name=".AgendaWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/agenda_widget_info" />
+        </receiver>
+        <receiver
             android:name=".BootReceiver"
             android:directBootAware="true"
             android:enabled="true"
