@@ -1,0 +1,97 @@
+package it.faccioio.app
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.widget.RemoteViews
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+class AgendaWidgetProvider : AppWidgetProvider() {
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        appWidgetIds.forEach { updateWidget(context, appWidgetManager, it) }
+    }
+
+    companion object {
+        internal fun updateAll(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, AgendaWidgetProvider::class.java)
+            manager.getAppWidgetIds(component).forEach {
+                updateWidget(context, manager, it)
+            }
+        }
+
+        private fun updateWidget(
+            context: Context,
+            manager: AppWidgetManager,
+            widgetId: Int
+        ) {
+            val now = System.currentTimeMillis()
+            val tasks = loadTasks(context)
+            val todayTasks = tasks.filter { task ->
+                !task.completed && (
+                    task.appointmentTime?.let { sameWidgetDay(it, now) } == true ||
+                        task.reminderTime?.let { sameWidgetDay(it, now) } == true ||
+                        (task.appointmentTime == null && task.reminderTime == null)
+                    )
+            }
+            val next = tasks
+                .filter { !it.completed }
+                .mapNotNull { task ->
+                    val time = task.appointmentTime ?: task.reminderTime
+                    if (time != null && time >= now && sameWidgetDay(time, now)) task to time
+                    else null
+                }
+                .minByOrNull { it.second }
+
+            val views = RemoteViews(context.packageName, R.layout.faccio_io_widget)
+            views.setTextViewText(R.id.widget_count, "${todayTasks.size} attività da fare oggi")
+            if (next == null) {
+                views.setTextViewText(R.id.widget_title, "Nessun altro impegno")
+                views.setTextViewText(R.id.widget_time, "Apri l’app per organizzare la giornata")
+                views.setTextViewText(R.id.widget_departure, "")
+            } else {
+                val (task, time) = next
+                views.setTextViewText(R.id.widget_title, task.title)
+                views.setTextViewText(
+                    R.id.widget_time,
+                    "${if (task.appointmentTime != null) "Appuntamento" else "Promemoria"}: ${widgetHour(time)}"
+                )
+                views.setTextViewText(
+                    R.id.widget_departure,
+                    task.departureTime?.takeIf { it >= now }?.let {
+                        "Partenza consigliata: ${widgetHour(it)}"
+                    }.orEmpty()
+                )
+            }
+
+            val openApp = PendingIntent.getActivity(
+                context,
+                widgetId,
+                Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_root, openApp)
+            manager.updateAppWidget(widgetId, views)
+        }
+
+        private fun sameWidgetDay(first: Long, second: Long): Boolean {
+            val a = Calendar.getInstance().apply { timeInMillis = first }
+            val b = Calendar.getInstance().apply { timeInMillis = second }
+            return a.get(Calendar.YEAR) == b.get(Calendar.YEAR) &&
+                a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
+        }
+
+        private fun widgetHour(time: Long): String =
+            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
+    }
+}
