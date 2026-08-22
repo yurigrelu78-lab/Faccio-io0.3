@@ -11,7 +11,10 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (
             intent.action != Intent.ACTION_BOOT_COMPLETED &&
-            intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
+            intent.action != Intent.ACTION_LOCKED_BOOT_COMPLETED &&
+            intent.action != Intent.ACTION_MY_PACKAGE_REPLACED &&
+            intent.action != "android.intent.action.QUICKBOOT_POWERON" &&
+            intent.action != "com.htc.intent.action.QUICKBOOT_POWERON"
         ) {
             return
         }
@@ -27,7 +30,7 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         val now = System.currentTimeMillis()
-        loadTasks(context)
+        loadTasksForBoot(context)
             .filter { task ->
                 task.reminderTime != null &&
                     task.reminderTime > now &&
