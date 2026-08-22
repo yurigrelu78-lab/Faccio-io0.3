@@ -1133,44 +1133,157 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     if (showRoutineTemplates) {
         AlertDialog(
             onDismissRequest = { showRoutineTemplates = false },
-            title = { Text("Scegli una routine") },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            tonalElevation = 3.dp,
+            titleContentColor = FaccioNavy,
+            textContentColor = FaccioMutedText,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 5.dp, height = 32.dp)
+                            .background(FaccioTeal, RoundedCornerShape(50))
+                    )
+                    Column {
+                        Text(
+                            "Scegli una routine",
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioNavy
+                        )
+                        Text(
+                            "Una sequenza pronta, un pensiero in meno",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FaccioMutedText
+                        )
+                    }
+                }
+            },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    (routineTemplates() + customRoutineTemplates).forEach { template ->
-                        OutlinedButton(
-                            onClick = {
-                                pendingTask = template.title
-                                pendingCategory = template.category
-                                pendingPriority = template.priority
-                                pendingRoutineSteps = template.routineSteps
-                                taskDuration = durationOption(template.durationMinutes)
-                                taskCustomDuration = template.durationMinutes.toString()
-                                showRoutineTemplates = false
-                                showReminderChoice = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                    if (routineTemplates().isNotEmpty()) {
+                        Text(
+                            "ROUTINE PRONTE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioTeal
+                        )
+                    }
+                    routineTemplates().forEach { template ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = FaccioCard),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
-                            Column(Modifier.fillMaxWidth()) {
-                                Text(template.title, fontWeight = FontWeight.Bold)
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
                                 Text(
-                                    "${template.routineSteps.size} passaggi • ${formatDuration(template.durationMinutes)}",
-                                    style = MaterialTheme.typography.bodySmall
+                                    template.title,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = FaccioNavy
                                 )
+                                Text(
+                                    "${template.routineSteps.size} passaggi • ${formatDuration(template.durationMinutes)} • ${template.category}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = FaccioMutedText
+                                )
+                                Button(
+                                    onClick = {
+                                        pendingTask = template.title
+                                        pendingCategory = template.category
+                                        pendingPriority = template.priority
+                                        pendingRoutineSteps = template.routineSteps
+                                        taskDuration = durationOption(template.durationMinutes)
+                                        taskCustomDuration = template.durationMinutes.toString()
+                                        showRoutineTemplates = false
+                                        showReminderChoice = true
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
+                                ) { Text("Usa questa routine") }
                             }
                         }
-                        if (template in customRoutineTemplates) {
-                            TextButton(
-                                onClick = {
-                                    customRoutineTemplates.remove(template)
-                                    saveCustomRoutineTemplates(context, customRoutineTemplates)
+                    }
+
+                    if (customRoutineTemplates.isNotEmpty()) {
+                        Text(
+                            "LE MIE ROUTINE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioTeal,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    customRoutineTemplates.forEach { template ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F5FF)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(
+                                    template.title,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = FaccioNavy
+                                )
+                                Text(
+                                    "${template.routineSteps.size} passaggi • ${formatDuration(template.durationMinutes)} • ${template.category}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = FaccioMutedText
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            pendingTask = template.title
+                                            pendingCategory = template.category
+                                            pendingPriority = template.priority
+                                            pendingRoutineSteps = template.routineSteps
+                                            taskDuration = durationOption(template.durationMinutes)
+                                            taskCustomDuration = template.durationMinutes.toString()
+                                            showRoutineTemplates = false
+                                            showReminderChoice = true
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
+                                    ) { Text("Usa") }
+                                    TextButton(
+                                        onClick = {
+                                            customRoutineTemplates.remove(template)
+                                            saveCustomRoutineTemplates(
+                                                context,
+                                                customRoutineTemplates
+                                            )
+                                        },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = FaccioCoral
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) { Text("Elimina") }
                                 }
-                            ) { Text("Elimina modello") }
+                            }
                         }
                     }
-                    Button(
+
+                    OutlinedButton(
                         onClick = {
                             customRoutineName = ""
                             customRoutineCategory = "Personale"
@@ -1180,17 +1293,25 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             showRoutineTemplates = false
                             showCustomRoutineEditor = true
                         },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Crea routine personalizzata") }
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+                    ) { Text("Crea una nuova routine") }
+
                     Text(
-                        "Dopo la scelta potrai configurare durata, ripetizione, promemoria e luogo.",
-                        style = MaterialTheme.typography.bodySmall
+                        "Dopo la scelta potrai impostare durata, ripetizione, promemoria e luogo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = FaccioMutedText
                     )
                 }
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showRoutineTemplates = false }) { Text("Annulla") }
+                TextButton(
+                    onClick = { showRoutineTemplates = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
+                ) { Text("Chiudi") }
             }
         )
     }
@@ -1198,18 +1319,53 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     if (showCustomRoutineEditor) {
         AlertDialog(
             onDismissRequest = { showCustomRoutineEditor = false },
-            title = { Text("Nuova routine") },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            tonalElevation = 3.dp,
+            titleContentColor = FaccioNavy,
+            textContentColor = FaccioMutedText,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 5.dp, height = 32.dp)
+                            .background(FaccioTeal, RoundedCornerShape(50))
+                    )
+                    Column {
+                        Text(
+                            "Nuova routine",
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioNavy
+                        )
+                        Text(
+                            "Costruiscila un passaggio alla volta",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FaccioMutedText
+                        )
+                    }
+                }
+            },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
                         value = customRoutineName,
                         onValueChange = { customRoutineName = it },
                         label = { Text("Nome della routine") },
+                        placeholder = { Text("Es. Prepararmi per il lavoro") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = FaccioTeal,
+                            focusedLabelColor = FaccioTeal,
+                            cursorColor = FaccioTeal
+                        )
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1230,18 +1386,43 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             Modifier.weight(1f)
                         )
                     }
-                    Text("Passaggi", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "PASSAGGI",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = FaccioTeal
+                    )
                     customRoutineSteps.forEachIndexed { index, step ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .background(FaccioCard, RoundedCornerShape(50)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "${index + 1}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FaccioNavy
+                                )
+                            }
                             OutlinedTextField(
                                 value = step,
                                 onValueChange = { customRoutineSteps[index] = it },
-                                label = { Text("Passaggio ${index + 1}") },
+                                label = { Text("Cosa devi fare?") },
                                 singleLine = true,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = FaccioTeal,
+                                    focusedLabelColor = FaccioTeal,
+                                    cursorColor = FaccioTeal
+                                )
                             )
                             TextButton(
                                 onClick = {
@@ -1250,31 +1431,56 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     } else {
                                         customRoutineSteps[0] = ""
                                     }
-                                }
-                            ) { Text("Rimuovi") }
+                                },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = FaccioCoral
+                                ),
+                                contentPadding = PaddingValues(horizontal = 4.dp)
+                            ) { Text("×") }
                         }
                     }
                     OutlinedButton(
                         onClick = { customRoutineSteps.add("") },
                         enabled = customRoutineSteps.size < 20,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Aggiungi passaggio") }
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Aggiungi passaggio")
+                    }
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         val name = customRoutineName.trim()
-                        val steps = customRoutineSteps.map(String::trim).filter(String::isNotBlank)
+                        val steps = customRoutineSteps
+                            .map(String::trim)
+                            .filter(String::isNotBlank)
                         if (name.isBlank() || steps.isEmpty()) {
-                            Toast.makeText(context, "Inserisci un nome e almeno un passaggio", Toast.LENGTH_LONG).show()
-                            return@TextButton
+                            Toast.makeText(
+                                context,
+                                "Inserisci un nome e almeno un passaggio",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@Button
                         }
                         if ((routineTemplates() + customRoutineTemplates).any {
                                 it.title.equals(name, ignoreCase = true)
                             }) {
-                            Toast.makeText(context, "Esiste già una routine con questo nome", Toast.LENGTH_LONG).show()
-                            return@TextButton
+                            Toast.makeText(
+                                context,
+                                "Esiste già una routine con questo nome",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@Button
                         }
                         val template = TaskItem(
                             title = name,
@@ -1293,11 +1499,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         taskCustomDuration = template.durationMinutes.toString()
                         showCustomRoutineEditor = false
                         showReminderChoice = true
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
                 ) { Text("Salva e configura") }
             },
             dismissButton = {
-                TextButton(onClick = { showCustomRoutineEditor = false }) { Text("Annulla") }
+                TextButton(
+                    onClick = { showCustomRoutineEditor = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
+                ) { Text("Annulla") }
             }
         )
     }
