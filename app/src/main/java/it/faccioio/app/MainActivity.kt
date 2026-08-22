@@ -301,20 +301,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             .fillMaxSize()
             .padding(20.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Faccio io",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-            TextButton(onClick = onOpenSetup) {
-                Text("Impostazioni")
-            }
-        }
+        Text(
+            text = "Faccio io",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold
+        )
         Text(
             text = "Un passo alla volta.",
             style = MaterialTheme.typography.bodyLarge
@@ -342,6 +333,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     modifier = Modifier.weight(1f)
                 ) { Text("Attività") }
             }
+            if (mainSection == "Strumenti") {
+                Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Strumenti") }
+            } else {
+                OutlinedButton(
+                    onClick = { mainSection = "Strumenti" },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Strumenti") }
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -365,7 +364,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 },
                 modifier = Modifier.weight(1f)
             )
-        } else {
+        } else if (mainSection == "Attività") {
 
         OutlinedTextField(
             value = newTask,
@@ -435,34 +434,6 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Assistente IA · testo o voce")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = { showRoutineTemplates = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Aggiungi routine guidata")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
-                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                    exportBackupLauncher.launch("Faccio-io-backup-$date.json")
-                },
-                modifier = Modifier.weight(1f)
-            ) { Text("Esporta backup") }
-            OutlinedButton(
-                onClick = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) },
-                modifier = Modifier.weight(1f)
-            ) { Text("Ripristina") }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -684,6 +655,87 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 }
             }
         }
+        } else {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Strumenti",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Routine, sicurezza dei dati e configurazione dell’app.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Routine", style = MaterialTheme.typography.titleMedium)
+                        Text("Aggiungi una routine pronta oppure crea un modello personale riutilizzabile.")
+                        Button(
+                            onClick = { showRoutineTemplates = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Aggiungi routine guidata") }
+                    }
+                }
+
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Backup", style = MaterialTheme.typography.titleMedium)
+                        Text("Salva attività, promemoria e routine oppure ripristina un backup precedente.")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                    exportBackupLauncher.launch("Faccio-io-backup-$date.json")
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Esporta") }
+                            OutlinedButton(
+                                onClick = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Ripristina") }
+                        }
+                    }
+                }
+
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Configurazione", style = MaterialTheme.typography.titleMedium)
+                        Text("Controlla notifiche, posizione, batteria e funzionamento in background.")
+                        OutlinedButton(
+                            onClick = onOpenSetup,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Verifica permessi e avvio") }
+                    }
+                }
+
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("Widget", style = MaterialTheme.typography.titleMedium)
+                        Text("Puoi aggiungere il widget Faccio io dalla schermata Home del telefono per vedere la prossima attività.")
+                    }
+                }
+            }
         }
     }
 
