@@ -30,6 +30,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -196,6 +199,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var departureSafety by rememberSaveable { mutableStateOf("Normale") }
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
     var mainSection by rememberSaveable { mutableStateOf("Oggi") }
+    var showTaskSearch by rememberSaveable { mutableStateOf(false) }
+    var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
     var customRoutineName by rememberSaveable { mutableStateOf("") }
@@ -246,10 +251,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         }
     }
 
+    val normalizedSearch = taskSearchQuery.trim().lowercase(Locale.ITALIAN)
     val visibleTasks = tasks.withIndex().filter { indexedTask ->
         val task = indexedTask.value
         (categoryFilter == "Tutte" || task.category == categoryFilter) &&
-            (priorityFilter == "Tutte" || task.priority == priorityFilter)
+            (priorityFilter == "Tutte" || task.priority == priorityFilter) &&
+            (
+                normalizedSearch.isEmpty() ||
+                    task.title.lowercase(Locale.ITALIAN).contains(normalizedSearch) ||
+                    task.location.orEmpty().lowercase(Locale.ITALIAN).contains(normalizedSearch) ||
+                    task.category.lowercase(Locale.ITALIAN).contains(normalizedSearch)
+                )
     }
 
     fun addPendingTask(
@@ -301,11 +313,33 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             .fillMaxSize()
             .padding(20.dp)
     ) {
-        Text(
-            text = "Faccio io",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Faccio io",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(
+                onClick = {
+                    if (showTaskSearch) {
+                        taskSearchQuery = ""
+                        showTaskSearch = false
+                    } else {
+                        mainSection = "Attività"
+                        showTaskSearch = true
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = if (showTaskSearch) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (showTaskSearch) "Chiudi ricerca" else "Cerca attività"
+                )
+            }
+        }
         Text(
             text = "Un passo alla volta.",
             style = MaterialTheme.typography.bodyLarge
@@ -365,6 +399,28 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 modifier = Modifier.weight(1f)
             )
         } else if (mainSection == "Attività") {
+
+        if (showTaskSearch) {
+            OutlinedTextField(
+                value = taskSearchQuery,
+                onValueChange = { taskSearchQuery = it },
+                label = { Text("Cerca attività") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                },
+                trailingIcon = if (taskSearchQuery.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { taskSearchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancella ricerca")
+                        }
+                    }
+                } else null,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         OutlinedTextField(
             value = newTask,
@@ -487,7 +543,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             if (visibleTasks.isEmpty()) {
                 item {
                     Text(
-                        text = "Nessuna attività corrisponde ai filtri selezionati.",
+                        text = if (normalizedSearch.isNotEmpty()) {
+                            "Nessuna attività trovata per “${taskSearchQuery.trim()}”."
+                        } else {
+                            "Nessuna attività corrisponde ai filtri selezionati."
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
