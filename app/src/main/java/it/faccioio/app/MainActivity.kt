@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 30448)
+Total output lines: 2736
+
 package it.faccioio.app
 
 import android.Manifest
@@ -25,6 +28,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,6 +36,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import org.json.JSONArray
@@ -340,39 +348,55 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 )
             }
         }
-        Text(
-            text = "Un passo alla volta.",
-            style = MaterialTheme.typography.bodyLarge
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (mainSection == "Oggi") {
-                Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Oggi") }
+                Button(
+                    onClick = {},
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) { Text("Oggi") }
             } else {
                 OutlinedButton(
                     onClick = { mainSection = "Oggi" },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) { Text("Oggi") }
             }
             if (mainSection == "Attività") {
-                Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Attività") }
+                Button(
+                    onClick = {},
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) { Text("Attività") }
             } else {
                 OutlinedButton(
                     onClick = { mainSection = "Attività" },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) { Text("Attività") }
             }
             if (mainSection == "Strumenti") {
-                Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Strumenti") }
+                Button(
+                    onClick = {},
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) { Text("Strumenti") }
             } else {
                 OutlinedButton(
                     onClick = { mainSection = "Strumenti" },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) { Text("Strumenti") }
             }
         }
@@ -396,6 +420,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         task.longitude
                     )
                 },
+                onAddTask = { mainSection = "Attività" },
                 modifier = Modifier.weight(1f)
             )
         } else if (mainSection == "Attività") {
@@ -1249,39 +1274,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         ) {
                             Toast.makeText(
                                 context,
-                                "Il promemoria deve essere futuro e precedente all’appuntamento",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            return@TextButton
-                        }
-                        val departure = departureEstimate
-                        val durationMinutes = selectedDurationMinutes(
-                            assistantDuration,
-                            assistantCustomDuration
-                        )
-                        if (durationMinutes !in 5..720) {
-                            Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
-                            return@TextButton
-                        }
-                        if (departure != null && departure.departureTime <= System.currentTimeMillis()) {
-                            Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
-                            return@TextButton
-                        }
-                        if (departure != null) {
-                            if (!scheduleReminder(context, "È ora di partire: ${appointment.title}", departure.departureTime)) return@TextButton
-                        }
-                        if (
-                            reminderTime != null &&
-                            !scheduleReminder(context, appointment.title, reminderTime)
-                        ) {
-                            return@TextButton
-                        }
-
-                        tasks.add(
-                            TaskItem(
-                                title = appointment.title,
-                                reminderTime = reminderTime,
-                                category = assistantCategory,
+                  …448 tokens truncated…             category = assistantCategory,
                                 priority = assistantPriority,
                                 appointmentTime = appointment.time,
                                 location = resolvedPlace?.address ?: appointment.location,
@@ -1691,12 +1684,20 @@ private data class AgendaEntry(
     val time: Long
 )
 
+private val FaccioNavy = Color(0xFF173A5E)
+private val FaccioTeal = Color(0xFF188C8C)
+private val FaccioCoral = Color(0xFFE57868)
+private val FaccioAmber = Color(0xFFF1AD43)
+private val FaccioCard = Color(0xFFF4F7FA)
+private val FaccioMutedText = Color(0xFF5E6875)
+
 @Composable
 private fun TodayAgenda(
     tasks: List<TaskItem>,
     onCompletedChange: (Int, Boolean) -> Unit,
     onStepChange: (Int, Int, Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit,
+    onAddTask: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1730,6 +1731,9 @@ private fun TodayAgenda(
     }.toSet()
     val totalMinutes = scheduled.sumOf { it.task.durationMinutes } +
         unscheduled.sumOf { it.second.durationMinutes }
+    val todayTasks = scheduled.map { it.task } + unscheduled.map { it.second }
+    val completedCount = todayTasks.count { it.completed }
+    val progress = if (todayTasks.isEmpty()) 0f else completedCount.toFloat() / todayTasks.size
     val routeCandidates = (scheduled.map { it.task } + unscheduled.map { it.second })
         .distinct()
         .filter { it.latitude != null && it.longitude != null && !it.completed }
@@ -1739,22 +1743,81 @@ private fun TodayAgenda(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Text(
-                text = SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
-                    .format(Date()).replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = agendaSummary(scheduled, unscheduled.size, totalMinutes),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
+                            .format(Date()).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = FaccioNavy
+                    )
+                    Text("Un passo alla volta.", style = MaterialTheme.typography.bodySmall, color = FaccioMutedText)
+                }
+                FilledTonalButton(
+                    onClick = onAddTask,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = FaccioNavy,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Aggiungi")
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = FaccioCard)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("La tua giornata", fontWeight = FontWeight.Bold, color = FaccioNavy)
+                        Text(
+                            "$completedCount/${todayTasks.size} completate",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = FaccioMutedText
+                        )
+                    }
+                    Text(
+                        "${todayTasks.size} attività · ${formatDuration(totalMinutes)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FaccioMutedText
+                    )
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(5.dp),
+                        color = FaccioTeal,
+                        trackColor = Color(0xFFDDE5EA)
+                    )
+                }
+            }
         }
 
         if (routeCandidates.size >= 2) {
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
                         Text("Giro di oggi", fontWeight = FontWeight.Bold)
                         Text("${routeCandidates.size} tappe con un luogo. L’ordine proposto riduce la distanza dalla posizione attuale.")
                         OutlinedButton(
@@ -1769,7 +1832,8 @@ private fun TodayAgenda(
                                 }
                             },
                             enabled = !routeLoading,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.align(Alignment.End),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) { Text(if (routeLoading) "Calcolo in corso…" else "Organizza il giro") }
                         routePlan?.let { plan ->
                             Text("Distanza diretta stimata: ${String.format(Locale.ITALIAN, "%.1f", plan.directKilometers)} km")
@@ -1778,7 +1842,8 @@ private fun TodayAgenda(
                             }
                             Button(
                                 onClick = { openRouteInGoogleMaps(context, plan) },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.align(Alignment.End),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                             ) { Text("Apri percorso in Google Maps") }
                             Text(
                                 "Google Maps calcolerà strade e tempi reali. Controlla sempre gli orari fissi degli appuntamenti.",
@@ -1790,33 +1855,13 @@ private fun TodayAgenda(
             }
         }
 
-        if (nextEntry != null) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("PROSSIMO IMPEGNO", style = MaterialTheme.typography.labelMedium)
-                        Text(nextEntry.task.title, fontWeight = FontWeight.Bold)
-                        Text(agendaTimeText(nextEntry.task, nextEntry.time))
-                        nextEntry.task.departureTime?.takeIf { it >= now }?.let {
-                            Text("Partenza consigliata: ${formatHour(it)}")
-                        }
-                        nextEntry.task.location?.let { Text(it) }
-                    }
-                }
-            }
-        }
-
         if (scheduled.isNotEmpty()) {
-            item { Text("La giornata", fontWeight = FontWeight.SemiBold) }
+            item { Text("Prossime attività", fontWeight = FontWeight.Bold, color = FaccioNavy) }
             items(scheduled) { entry ->
                 AgendaTaskCard(
                     task = entry.task,
                     leadingText = formatHour(entry.time),
+                    isNext = entry == nextEntry,
                     hasConflict = entry.index in overlappingIndexes,
                     onStepChange = { stepIndex, completed ->
                         onStepChange(entry.index, stepIndex, completed)
@@ -1828,7 +1873,7 @@ private fun TodayAgenda(
         }
 
         if (unscheduled.isNotEmpty()) {
-            item { Text("Da fare senza orario", fontWeight = FontWeight.SemiBold) }
+            item { Text("Da fare senza orario", fontWeight = FontWeight.Bold, color = FaccioNavy) }
             items(unscheduled) { (index, task) ->
                 AgendaTaskCard(
                     task = task,
@@ -1860,29 +1905,47 @@ private fun AgendaTaskCard(
     task: TaskItem,
     leadingText: String,
     hasConflict: Boolean = false,
+    isNext: Boolean = false,
     onStepChange: (Int, Boolean) -> Unit,
     onCompletedChange: (Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val categoryColor = when (task.category) {
+        "Salute" -> FaccioCoral
+        "Casa" -> FaccioAmber
+        "Lavoro" -> FaccioTeal
+        else -> Color(0xFF3978C5)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isNext) Color(0xFFEDF4F8) else Color.White
+        )
+    ) {
         Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                leadingText,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(58.dp)
+            Checkbox(
+                checked = task.completed,
+                onCheckedChange = onCompletedChange,
+                modifier = Modifier.size(40.dp),
+                colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
             )
-            Checkbox(checked = task.completed, onCheckedChange = onCompletedChange)
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp, end = 9.dp)
+                    .size(9.dp)
+                    .background(categoryColor, RoundedCornerShape(50))
+            )
             Column(modifier = Modifier.weight(1f)) {
-                Text(task.title, fontWeight = FontWeight.SemiBold)
+                Text(task.title, fontWeight = FontWeight.SemiBold, color = FaccioNavy)
                 Text(
-                    "${task.category} • Priorità ${task.priority}",
+                    "${task.category} · ${formatDuration(task.durationMinutes)} · Priorità ${task.priority}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = priorityColor(task.priority)
+                    color = FaccioMutedText
                 )
-                Text("Durata stimata: ${formatDuration(task.durationMinutes)}", style = MaterialTheme.typography.bodySmall)
                 if (hasConflict) {
                     Text(
                         "Attenzione: questo orario si sovrappone a un altro impegno",
@@ -1902,12 +1965,26 @@ private fun AgendaTaskCard(
                         Text(step.title, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                task.departureTime?.let { Text("Partenza: ${formatHour(it)}", style = MaterialTheme.typography.bodySmall) }
-                task.location?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                task.departureTime?.let { Text("Partenza: ${formatHour(it)}", style = MaterialTheme.typography.bodySmall, color = FaccioTeal) }
+                task.location?.let {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(14.dp), tint = FaccioMutedText)
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = FaccioMutedText)
+                    }
+                }
                 if (task.location != null) {
-                    TextButton(onClick = { onOpenMap(task) }) { Text("Mappa") }
+                    TextButton(
+                        onClick = { onOpenMap(task) },
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                    ) { Text("Apri mappa", color = FaccioTeal) }
                 }
             }
+            Text(
+                leadingText,
+                fontWeight = FontWeight.Bold,
+                color = FaccioNavy,
+                modifier = Modifier.padding(start = 8.dp, top = 2.dp)
+            )
         }
     }
 }
