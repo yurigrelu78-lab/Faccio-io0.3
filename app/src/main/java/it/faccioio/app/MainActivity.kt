@@ -10,8 +10,13 @@ import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Address
+import android.location.Geocoder
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.widget.Toast
@@ -102,7 +107,15 @@ data class TaskItem(
     val category: String = "Personale",
     val priority: String = "Media",
     val appointmentTime: Long? = null,
-    val location: String? = null
+    val location: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+data class ResolvedPlace(
+    val address: String,
+    val latitude: Double,
+    val longitude: Double
 )
 
 internal const val TASK_PREFS = "faccio_io_tasks"
@@ -130,6 +143,8 @@ fun FaccioIoApp() {
     var showAssistant by rememberSaveable { mutableStateOf(false) }
     var assistantText by rememberSaveable { mutableStateOf("") }
     var assistantResult by remember { mutableStateOf<ParsedAppointment?>(null) }
+    var resolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
+    var placeLookupMessage by remember { mutableStateOf("") }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -348,6 +363,20 @@ fun FaccioIoApp() {
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
+                                if (task.location != null) {
+                                    TextButton(
+                                        onClick = {
+                                            openPlaceOnMap(
+                                                context,
+                                                task.location,
+                                                task.latitude,
+                                                task.longitude
+                                            )
+                                        }
+                                    ) {
+                                        Text("Apri nella mappa")
+                                    }
+                                }
                             }
                         }
 
@@ -437,6 +466,24 @@ fun FaccioIoApp() {
     }
 
     assistantResult?.let { appointment ->
+        LaunchedEffect(appointment.location) {
+            resolvedPlace = null
+            val location = appointment.location
+            if (location.isNullOrBlank()) {
+                placeLookupMessage = "Nessun luogo indicato"
+            } else {
+                placeLookupMessage = "Ricerca del luogo in corso…"
+                resolvePlace(context, location) { place ->
+                    resolvedPlace = place
+                    placeLookupMessage = if (place == null) {
+                        "Luogo non trovato: puoi comunque salvare l’indirizzo scritto."
+                    } else {
+                        "Luogo trovato e associato"
+                    }
+                }
+            }
+        }
+
         AlertDialog(
             onDismissRequest = { assistantResult = null },
             title = { Text("Conferma appuntamento") },
@@ -444,7 +491,28 @@ fun FaccioIoApp() {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Attività: ${appointment.title}")
                     Text("Quando: ${formatReminderTime(appointment.time)}")
-                    Text("Luogo: ${appointment.location ?: "non indicato"}")
+                    Text(
+                        "Luogo: ${resolvedPlace?.address ?: appointment.location ?: "non indicato"}"
+                    )
+                    Text(
+                        placeLookupMessage,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (appointment.location != null) {
+                        OutlinedButton(
+                            onClick = {
+                                openPlaceOnMap(
+                                    context,
+                                    resolvedPlace?.address ?: appointment.location,
+                                    resolvedPlace?.latitude,
+                                    resolvedPlace?.longitude
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Controlla sulla mappa")
+                        }
+                    }
                     Text("Controlla i dati prima di salvare.")
                 }
             },
@@ -459,7 +527,9 @@ fun FaccioIoApp() {
                                     category = "Personale",
                                     priority = "Media",
                                     appointmentTime = appointment.time,
-                                    location = appointment.location
+                                    location = resolvedPlace?.address ?: appointment.location,
+                                    latitude = resolvedPlace?.latitude,
+                                    longitude = resolvedPlace?.longitude
                                 )
                             )
                             saveTasks(context, tasks)
@@ -483,7 +553,9 @@ fun FaccioIoApp() {
                                 category = "Personale",
                                 priority = "Media",
                                 appointmentTime = appointment.time,
-                                location = appointment.location
+                                location = resolvedPlace?.address ?: appointment.location,
+                                latitude = resolvedPlace?.latitude,
+                                longitude = resolvedPlace?.longitude
                             )
                         )
                         saveTasks(context, tasks)
@@ -876,7 +948,9 @@ private fun parseTasks(
                     null
                 } else {
                     item.optString("location").takeIf { it.isNotBlank() }
-                }
+                },
+                latitude = if (item.isNull("latitude")) null else item.optDouble("latitude"),
+                longitude = if (item.isNull("longitude")) null else item.optDouble("longitude")
             )
         }
     } catch (_: Exception) {
@@ -896,6 +970,8 @@ private fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("priority", task.priority)
                 put("appointmentTime", task.appointmentTime ?: JSONObject.NULL)
                 put("location", task.location ?: JSONObject.NULL)
+                put("latitude", task.latitude ?: JSONObject.NULL)
+                put("longitude", task.longitude ?: JSONObject.NULL)
             }
         )
     }
@@ -923,3 +999,79 @@ private fun defaultTasks(): List<TaskItem> = listOf(
     TaskItem("Fare una pausa di 10 minuti", category = "Salute"),
     TaskItem("Preparare le cose per domani", category = "Casa")
 )
+
+private fun resolvePlace(
+    context: Context,
+    query: String,
+    onResult: (ResolvedPlace?) -> Unit
+) {
+    if (!Geocoder.isPresent()) {
+        onResult(null)
+        return
+    }
+
+    val geocoder = Geocoder(context, Locale.ITALIAN)
+    val deliver: (List<Address>?) -> Unit = { addresses ->
+        val address = addresses?.firstOrNull()
+        val place = address?.let {
+            ResolvedPlace(
+                address = it.getAddressLine(0) ?: query,
+                latitude = it.latitude,
+                longitude = it.longitude
+            )
+        }
+        Handler(Looper.getMainLooper()).post { onResult(place) }
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        geocoder.getFromLocationName(
+            query,
+            1,
+            object : Geocoder.GeocodeListener {
+                override fun onGeocode(addresses: MutableList<Address>) {
+                    deliver(addresses)
+                }
+
+                override fun onError(errorMessage: String?) {
+                    deliver(null)
+                }
+            }
+        )
+    } else {
+        Thread {
+            val addresses = try {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocationName(query, 1)
+            } catch (_: Exception) {
+                null
+            }
+            deliver(addresses)
+        }.start()
+    }
+}
+
+private fun openPlaceOnMap(
+    context: Context,
+    label: String,
+    latitude: Double?,
+    longitude: Double?
+) {
+    val query = if (latitude != null && longitude != null) {
+        "${latitude},${longitude}($label)"
+    } else {
+        label
+    }
+    val intent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("geo:0,0?q=${Uri.encode(query)}")
+    )
+    try {
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        Toast.makeText(
+            context,
+            "Installa o abilita un’app di mappe",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+}
