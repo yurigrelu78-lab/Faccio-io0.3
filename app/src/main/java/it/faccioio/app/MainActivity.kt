@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
                         InitialSetupScreen(
                             onComplete = {
                                 markInitialSetupComplete(this@MainActivity)
+                                restoreAllFutureAutomations(this@MainActivity)
                                 showSetup = false
                             },
                             onClose = if (isInitialSetupComplete(this@MainActivity)) {
@@ -217,6 +218,31 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     val tasks = remember(context) {
         mutableStateListOf<TaskItem>().apply {
             addAll(loadTasks(context))
+        }
+    }
+    var pendingBackupRestore by remember { mutableStateOf<BackupPayload?>(null) }
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            val ok = exportCompleteBackup(context, uri)
+            Toast.makeText(
+                context,
+                if (ok) "Backup esportato" else "Esportazione non riuscita",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val payload = readCompleteBackup(context, uri)
+            if (payload == null) {
+                Toast.makeText(context, "Il file non è un backup valido di Faccio io", Toast.LENGTH_LONG).show()
+            } else {
+                pendingBackupRestore = payload
+            }
         }
     }
 
@@ -418,6 +444,25 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Aggiungi routine guidata")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    exportBackupLauncher.launch("Faccio-io-backup-$date.json")
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("Esporta backup") }
+            OutlinedButton(
+                onClick = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) },
+                modifier = Modifier.weight(1f)
+            ) { Text("Ripristina") }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -700,6 +745,39 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             },
             dismissButton = {
                 TextButton(onClick = { showAssistant = false }) { Text("Annulla") }
+            }
+        )
+    }
+
+    pendingBackupRestore?.let { payload ->
+        AlertDialog(
+            onDismissRequest = { pendingBackupRestore = null },
+            title = { Text("Ripristinare il backup?") },
+            text = {
+                Text(
+                    "Verranno sostituite le attività e le routine presenti con ${payload.tasks.size} attività e ${payload.customTemplates.size} modelli del backup. I permessi del telefono dovranno essere verificati nuovamente."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val restored = applyCompleteBackup(context, payload)
+                        if (restored) {
+                            tasks.clear()
+                            tasks.addAll(loadTasks(context))
+                            customRoutineTemplates.clear()
+                            customRoutineTemplates.addAll(loadCustomRoutineTemplates(context))
+                            onOpenSetup()
+                            Toast.makeText(context, "Backup ripristinato", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "Ripristino non riuscito", Toast.LENGTH_LONG).show()
+                        }
+                        pendingBackupRestore = null
+                    }
+                ) { Text("Sostituisci e ripristina") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingBackupRestore = null }) { Text("Annulla") }
             }
         )
     }
@@ -1925,7 +2003,7 @@ private fun routineTemplates(): List<TaskItem> = listOf(
 private const val ROUTINE_TEMPLATE_PREFS = "faccio_io_routine_templates"
 private const val ROUTINE_TEMPLATE_KEY = "custom_templates"
 
-private fun loadCustomRoutineTemplates(context: Context): List<TaskItem> {
+internal fun loadCustomRoutineTemplates(context: Context): List<TaskItem> {
     val saved = context.getSharedPreferences(ROUTINE_TEMPLATE_PREFS, Context.MODE_PRIVATE)
         .getString(ROUTINE_TEMPLATE_KEY, null) ?: return emptyList()
     return try {
@@ -1948,7 +2026,7 @@ private fun loadCustomRoutineTemplates(context: Context): List<TaskItem> {
     }
 }
 
-private fun saveCustomRoutineTemplates(context: Context, templates: List<TaskItem>) {
+internal fun saveCustomRoutineTemplates(context: Context, templates: List<TaskItem>) {
     val array = JSONArray()
     templates.forEach { template ->
         array.put(
@@ -2135,7 +2213,7 @@ internal fun scheduleReminder(
     }
 }
 
-private fun cancelReminder(context: Context, task: TaskItem) {
+internal fun cancelReminder(context: Context, task: TaskItem) {
     val reminderTime = task.reminderTime ?: return
     val reminderIntent = Intent(context, ReminderReceiver::class.java)
     val pendingIntent = PendingIntent.getBroadcast(
@@ -2151,7 +2229,7 @@ private fun cancelReminder(context: Context, task: TaskItem) {
     pendingIntent.cancel()
 }
 
-private fun cancelDepartureReminder(context: Context, task: TaskItem) {
+internal fun cancelDepartureReminder(context: Context, task: TaskItem) {
     val departureTime = task.departureTime ?: return
     val alarmTitle = "È ora di partire: ${task.title}"
     val pendingIntent = PendingIntent.getBroadcast(
@@ -2233,7 +2311,7 @@ internal fun loadTasksForBoot(context: Context): List<TaskItem> {
     return parseTasks(savedJson, emptyList())
 }
 
-private fun parseTasks(
+internal fun parseTasks(
     savedJson: String,
     fallback: List<TaskItem> = defaultTasks()
 ): List<TaskItem> {
@@ -2290,6 +2368,18 @@ private fun parseTasks(
 }
 
 internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
+    val savedJson = serializeTasks(tasks)
+
+    context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(TASKS_KEY, savedJson)
+        .apply()
+
+    mirrorTasksForBoot(context, savedJson)
+    AgendaWidgetProvider.updateAll(context)
+}
+
+internal fun serializeTasks(tasks: List<TaskItem>): String {
     val array = JSONArray()
     tasks.forEach { task ->
         array.put(
@@ -2329,15 +2419,7 @@ internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
         )
     }
 
-    val savedJson = array.toString()
-
-    context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
-        .edit()
-        .putString(TASKS_KEY, savedJson)
-        .apply()
-
-    mirrorTasksForBoot(context, savedJson)
-    AgendaWidgetProvider.updateAll(context)
+    return array.toString()
 }
 
 private fun mirrorTasksForBoot(context: Context, savedJson: String) {
