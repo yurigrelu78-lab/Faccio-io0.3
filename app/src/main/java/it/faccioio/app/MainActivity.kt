@@ -118,8 +118,11 @@ data class TaskItem(
     val departureSafety: String = "Normale",
     val recurrence: String = "Mai",
     val recurrenceIntervalDays: Int = 1,
-    val durationMinutes: Int = 30
+    val durationMinutes: Int = 30,
+    val routineSteps: List<RoutineStep> = emptyList()
 )
+
+data class RoutineStep(val title: String, val completed: Boolean = false)
 
 data class ResolvedPlace(
     val address: String,
@@ -150,6 +153,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var selectedPriority by rememberSaveable { mutableStateOf("Media") }
     var pendingCategory by rememberSaveable { mutableStateOf("Personale") }
     var pendingPriority by rememberSaveable { mutableStateOf("Media") }
+    var pendingRoutineSteps by remember { mutableStateOf<List<RoutineStep>>(emptyList()) }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var deletingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var editedTitle by rememberSaveable { mutableStateOf("") }
@@ -191,6 +195,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var departureSafety by rememberSaveable { mutableStateOf("Normale") }
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
     var mainSection by rememberSaveable { mutableStateOf("Oggi") }
+    var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -233,7 +238,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 arrivalReminderId = arrivalId,
                 recurrence = recurrence,
                 recurrenceIntervalDays = recurrenceDays,
-                durationMinutes = durationMinutes
+                durationMinutes = durationMinutes,
+                routineSteps = pendingRoutineSteps
             )
         )
         saveTasks(context, tasks)
@@ -243,6 +249,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         selectedPriority = "Media"
         pendingCategory = "Personale"
         pendingPriority = "Media"
+        pendingRoutineSteps = emptyList()
         showReminderChoice = false
         taskReminderMode = "Nessuno"
         taskReminderTime = null
@@ -311,6 +318,9 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 onCompletedChange = { index, completed ->
                     updateTaskCompletion(context, tasks, index, completed)
                 },
+                onStepChange = { index, stepIndex, completed ->
+                    updateRoutineStep(context, tasks, index, stepIndex, completed)
+                },
                 onOpenMap = { task ->
                     openPlaceOnMap(
                         context,
@@ -367,6 +377,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     pendingTask = text
                     pendingCategory = selectedCategory
                     pendingPriority = selectedPriority
+                    pendingRoutineSteps = emptyList()
                     taskReminderMode = "Nessuno"
                     taskReminderTime = null
                     taskRecurrence = "Mai"
@@ -390,6 +401,15 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Assistente IA · testo o voce")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { showRoutineTemplates = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Aggiungi routine guidata")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -503,6 +523,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                         text = recurrenceLabel(task),
                                         style = MaterialTheme.typography.bodySmall
                                     )
+                                }
+                                task.routineSteps.forEachIndexed { stepIndex, step ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = step.completed,
+                                            onCheckedChange = {
+                                                updateRoutineStep(context, tasks, index, stepIndex, it)
+                                            }
+                                        )
+                                        Text(step.title, style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                                 if (task.location != null) {
                                     TextButton(
@@ -661,6 +692,48 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             },
             dismissButton = {
                 TextButton(onClick = { showAssistant = false }) { Text("Annulla") }
+            }
+        )
+    }
+
+    if (showRoutineTemplates) {
+        AlertDialog(
+            onDismissRequest = { showRoutineTemplates = false },
+            title = { Text("Scegli una routine") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    routineTemplates().forEach { template ->
+                        OutlinedButton(
+                            onClick = {
+                                pendingTask = template.title
+                                pendingCategory = template.category
+                                pendingPriority = template.priority
+                                pendingRoutineSteps = template.routineSteps
+                                taskDuration = durationOption(template.durationMinutes)
+                                taskCustomDuration = template.durationMinutes.toString()
+                                showRoutineTemplates = false
+                                showReminderChoice = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(template.title, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "${template.routineSteps.size} passaggi • ${formatDuration(template.durationMinutes)}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "Dopo la scelta potrai configurare durata, ripetizione, promemoria e luogo.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showRoutineTemplates = false }) { Text("Annulla") }
             }
         )
     }
@@ -1294,6 +1367,7 @@ private data class AgendaEntry(
 private fun TodayAgenda(
     tasks: List<TaskItem>,
     onCompletedChange: (Int, Boolean) -> Unit,
+    onStepChange: (Int, Int, Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1416,6 +1490,9 @@ private fun TodayAgenda(
                     task = entry.task,
                     leadingText = formatHour(entry.time),
                     hasConflict = entry.index in overlappingIndexes,
+                    onStepChange = { stepIndex, completed ->
+                        onStepChange(entry.index, stepIndex, completed)
+                    },
                     onCompletedChange = { onCompletedChange(entry.index, it) },
                     onOpenMap = onOpenMap
                 )
@@ -1428,6 +1505,9 @@ private fun TodayAgenda(
                 AgendaTaskCard(
                     task = task,
                     leadingText = task.priority,
+                    onStepChange = { stepIndex, completed ->
+                        onStepChange(index, stepIndex, completed)
+                    },
                     onCompletedChange = { onCompletedChange(index, it) },
                     onOpenMap = onOpenMap
                 )
@@ -1452,6 +1532,7 @@ private fun AgendaTaskCard(
     task: TaskItem,
     leadingText: String,
     hasConflict: Boolean = false,
+    onStepChange: (Int, Boolean) -> Unit,
     onCompletedChange: (Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit
 ) {
@@ -1483,6 +1564,15 @@ private fun AgendaTaskCard(
                 }
                 if (task.recurrence != "Mai") {
                     Text(recurrenceLabel(task), style = MaterialTheme.typography.bodySmall)
+                }
+                task.routineSteps.forEachIndexed { stepIndex, step ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = step.completed,
+                            onCheckedChange = { onStepChange(stepIndex, it) }
+                        )
+                        Text(step.title, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 task.departureTime?.let { Text("Partenza: ${formatHour(it)}", style = MaterialTheme.typography.bodySmall) }
                 task.location?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -1588,9 +1678,15 @@ private fun updateTaskCompletion(
     index: Int,
     completed: Boolean
 ) {
-    val task = tasks.getOrNull(index) ?: return
+    val original = tasks.getOrNull(index) ?: return
+    val task = if (original.routineSteps.isNotEmpty()) {
+        original.copy(
+            completed = completed,
+            routineSteps = original.routineSteps.map { it.copy(completed = completed) }
+        )
+    } else original.copy(completed = completed)
     if (!completed || task.recurrence == "Mai") {
-        tasks[index] = task.copy(completed = completed)
+        tasks[index] = task
         saveTasks(context, tasks)
         return
     }
@@ -1614,7 +1710,11 @@ private fun updateTaskCompletion(
 }
 
 private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
-    var next = task.copy(completed = false, arrivalReminderId = null)
+    var next = task.copy(
+        completed = false,
+        arrivalReminderId = null,
+        routineSteps = task.routineSteps.map { it.copy(completed = false) }
+    )
     do {
         next = next.copy(
             reminderTime = next.reminderTime?.let { shiftRecurringTime(it, next) },
@@ -1624,6 +1724,65 @@ private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
     } while ((next.appointmentTime ?: next.reminderTime ?: Long.MAX_VALUE) <= now)
     return next
 }
+
+private fun updateRoutineStep(
+    context: Context,
+    tasks: MutableList<TaskItem>,
+    taskIndex: Int,
+    stepIndex: Int,
+    completed: Boolean
+) {
+    val task = tasks.getOrNull(taskIndex) ?: return
+    if (stepIndex !in task.routineSteps.indices) return
+    val updatedSteps = task.routineSteps.toMutableList().apply {
+        this[stepIndex] = this[stepIndex].copy(completed = completed)
+    }
+    val allCompleted = updatedSteps.isNotEmpty() && updatedSteps.all { it.completed }
+    tasks[taskIndex] = task.copy(routineSteps = updatedSteps)
+    if (allCompleted) {
+        updateTaskCompletion(context, tasks, taskIndex, true)
+    } else {
+        tasks[taskIndex] = tasks[taskIndex].copy(completed = false)
+        saveTasks(context, tasks)
+    }
+}
+
+private fun routineTemplates(): List<TaskItem> = listOf(
+    TaskItem(
+        title = "Uscire di casa",
+        category = "Personale",
+        durationMinutes = 15,
+        routineSteps = listOf(
+            RoutineStep("Prendere chiavi e portafoglio"),
+            RoutineStep("Controllare telefono e batteria"),
+            RoutineStep("Prendere ciò che serve"),
+            RoutineStep("Controllare porte e finestre")
+        )
+    ),
+    TaskItem(
+        title = "Preparare il lavoro",
+        category = "Lavoro",
+        durationMinutes = 20,
+        routineSteps = listOf(
+            RoutineStep("Controllare gli impegni"),
+            RoutineStep("Preparare documenti e strumenti"),
+            RoutineStep("Controllare il percorso"),
+            RoutineStep("Verificare le priorità")
+        )
+    ),
+    TaskItem(
+        title = "Preparare una visita medica",
+        category = "Salute",
+        priority = "Alta",
+        durationMinutes = 20,
+        routineSteps = listOf(
+            RoutineStep("Prendere tessera sanitaria"),
+            RoutineStep("Preparare impegnativa e documenti"),
+            RoutineStep("Annotare domande e sintomi"),
+            RoutineStep("Controllare luogo e orario")
+        )
+    )
+)
 
 private fun shiftRecurringTime(time: Long, task: TaskItem): Long =
     Calendar.getInstance().apply {
@@ -1927,7 +2086,16 @@ private fun parseTasks(
                 departureSafety = item.optString("departureSafety", "Normale"),
                 recurrence = item.optString("recurrence", "Mai"),
                 recurrenceIntervalDays = item.optInt("recurrenceIntervalDays", 1).coerceAtLeast(1),
-                durationMinutes = item.optInt("durationMinutes", 30).coerceIn(5, 720)
+                durationMinutes = item.optInt("durationMinutes", 30).coerceIn(5, 720),
+                routineSteps = item.optJSONArray("routineSteps")?.let { steps ->
+                    List(steps.length()) { stepIndex ->
+                        val step = steps.getJSONObject(stepIndex)
+                        RoutineStep(
+                            title = step.optString("title"),
+                            completed = step.optBoolean("completed", false)
+                        )
+                    }.filter { it.title.isNotBlank() }
+                }.orEmpty()
             )
         }
     } catch (_: Exception) {
@@ -1958,6 +2126,19 @@ internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("recurrence", task.recurrence)
                 put("recurrenceIntervalDays", task.recurrenceIntervalDays)
                 put("durationMinutes", task.durationMinutes)
+                put(
+                    "routineSteps",
+                    JSONArray().apply {
+                        task.routineSteps.forEach { step ->
+                            put(
+                                JSONObject().apply {
+                                    put("title", step.title)
+                                    put("completed", step.completed)
+                                }
+                            )
+                        }
+                    }
+                )
             }
         )
     }
