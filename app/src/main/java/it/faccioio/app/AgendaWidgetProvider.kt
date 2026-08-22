@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -54,11 +55,21 @@ class AgendaWidgetProvider : AppWidgetProvider() {
                 .minByOrNull { it.second }
 
             val views = RemoteViews(context.packageName, R.layout.faccio_io_widget)
-            views.setTextViewText(R.id.widget_count, "${todayTasks.size} attività da fare oggi")
+            views.setTextViewText(
+                R.id.widget_date,
+                SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
+                    .format(Date(now))
+                    .replaceFirstChar { it.uppercase(Locale.ITALIAN) }
+            )
+            views.setTextViewText(
+                R.id.widget_count,
+                if (todayTasks.size == 1) "1 attività" else "${todayTasks.size} attività"
+            )
             if (next == null) {
                 views.setTextViewText(R.id.widget_title, "Nessun altro impegno")
                 views.setTextViewText(R.id.widget_time, "Apri l’app per organizzare la giornata")
                 views.setTextViewText(R.id.widget_departure, "")
+                views.setViewVisibility(R.id.widget_departure, View.GONE)
             } else {
                 val (task, time) = next
                 views.setTextViewText(R.id.widget_title, task.title)
@@ -66,11 +77,14 @@ class AgendaWidgetProvider : AppWidgetProvider() {
                     R.id.widget_time,
                     "${if (task.appointmentTime != null) "Appuntamento" else "Promemoria"}: ${widgetHour(time)}"
                 )
+                val departure = task.departureTime?.takeIf { it >= now }
                 views.setTextViewText(
                     R.id.widget_departure,
-                    task.departureTime?.takeIf { it >= now }?.let {
-                        "Partenza consigliata: ${widgetHour(it)}"
-                    }.orEmpty()
+                    departure?.let { "Partenza consigliata  •  ${widgetHour(it)}" }.orEmpty()
+                )
+                views.setViewVisibility(
+                    R.id.widget_departure,
+                    if (departure == null) View.GONE else View.VISIBLE
                 )
             }
 
