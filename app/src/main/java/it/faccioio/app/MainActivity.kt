@@ -408,7 +408,7 @@ fun FaccioIoApp() {
                                     )
                                 }
                                 task.departureTime?.let { departureTime ->
-                                    Text("Partenza consigliata: ${formatReminderTime(departureTime)}", style = MaterialTheme.typography.bodySmall)
+                                    Text("Avviso di partenza programmato: ${formatReminderTime(departureTime)}", style = MaterialTheme.typography.bodySmall)
                                     Text("Stima: ${task.departureTravelMinutes ?: 0} min + ${task.departureMarginMinutes ?: 0} min di margine", style = MaterialTheme.typography.bodySmall)
                                 }
                                 task.location?.let { location ->
@@ -441,16 +441,23 @@ fun FaccioIoApp() {
                                                 if (estimate == null) {
                                                     Toast.makeText(context, "Posizione attuale non disponibile", Toast.LENGTH_LONG).show()
                                                 } else {
-                                                    cancelDepartureReminder(context, task)
-                                                    if (estimate.departureTime > System.currentTimeMillis()) {
-                                                        scheduleReminder(context, "È ora di partire: ${task.title}", estimate.departureTime)
+                                                    val now = System.currentTimeMillis()
+                                                    if (estimate.departureTime <= now) {
+                                                        Toast.makeText(context, "L’ora stimata è già trascorsa: parti appena possibile", Toast.LENGTH_LONG).show()
+                                                        return@estimateDepartureFromCurrentLocation
                                                     }
+                                                    val changed = estimate.departureTime != task.departureTime
+                                                    if (changed && !scheduleReminder(context, "È ora di partire: ${task.title}", estimate.departureTime)) {
+                                                        return@estimateDepartureFromCurrentLocation
+                                                    }
+                                                    if (changed) cancelDepartureReminder(context, task)
                                                     tasks[index] = task.copy(
                                                         departureTime = estimate.departureTime,
                                                         departureTravelMinutes = estimate.travelMinutes,
                                                         departureMarginMinutes = estimate.marginMinutes
                                                     )
                                                     saveTasks(context, tasks)
+                                                    Toast.makeText(context, "Avviso di partenza aggiornato automaticamente", Toast.LENGTH_SHORT).show()
                                                 }
                                             }
                                         }) { Text("Ricalcola partenza") }
@@ -666,6 +673,14 @@ fun FaccioIoApp() {
                         Text("Viaggio stimato: ${estimate.travelMinutes} minuti")
                         Text("Margine: ${estimate.marginMinutes} minuti")
                         Text("Partenza consigliata: ${formatReminderTime(estimate.departureTime)}")
+                        Text(
+                            if (estimate.departureTime > System.currentTimeMillis()) {
+                                "L’avviso verrà programmato automaticamente al salvataggio."
+                            } else {
+                                "L’ora stimata è già trascorsa: parti appena possibile."
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                     SelectionMenu(
                         label = "Promemoria",
@@ -741,7 +756,11 @@ fun FaccioIoApp() {
                             return@TextButton
                         }
                         val departure = departureEstimate
-                        if (departure != null && departure.departureTime > System.currentTimeMillis()) {
+                        if (departure != null && departure.departureTime <= System.currentTimeMillis()) {
+                            Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
+                        if (departure != null) {
                             if (!scheduleReminder(context, "È ora di partire: ${appointment.title}", departure.departureTime)) return@TextButton
                         }
                         if (
