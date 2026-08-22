@@ -50,11 +50,12 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <View
+    <TextView
         android:layout_width="34dp"
         android:layout_height="3dp"
         android:layout_marginTop="9dp"
-        android:background="@drawable/widget_accent" />
+        android:background="@drawable/widget_accent"
+        android:text="" />
 
     <TextView
         android:layout_width="wrap_content"
