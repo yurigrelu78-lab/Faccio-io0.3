@@ -790,81 +790,189 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = "Strumenti",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold,
+                    color = FaccioNavy
                 )
                 Text(
-                    text = "Routine, sicurezza dei dati e configurazione dell’app.",
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "Tutto ciò che ti aiuta a organizzarti e a proteggere i tuoi dati.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FaccioMutedText
                 )
 
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("Routine", style = MaterialTheme.typography.titleMedium)
-                        Text("Aggiungi una routine pronta oppure crea un modello personale riutilizzabile.")
-                        Button(
-                            onClick = { showRoutineTemplates = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Aggiungi routine guidata") }
-                    }
-                }
+                Spacer(modifier = Modifier.height(2.dp))
 
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("Backup", style = MaterialTheme.typography.titleMedium)
-                        Text("Salva attività, promemoria e routine oppure ripristina un backup precedente.")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
+                                .background(FaccioTeal)
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                    exportBackupLauncher.launch("Faccio-io-backup-$date.json")
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("Esporta") }
-                            OutlinedButton(
-                                onClick = { importBackupLauncher.launch(arrayOf("application/json", "text/plain")) },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("Ripristina") }
+                            Text(
+                                "Routine",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Scegli una sequenza pronta o crea la tua routine personale.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                            Button(
+                                onClick = { showRoutineTemplates = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
+                            ) { Text("Scegli una routine") }
                         }
                     }
                 }
 
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("Configurazione", style = MaterialTheme.typography.titleMedium)
-                        Text("Controlla notifiche, posizione, batteria e funzionamento in background.")
-                        OutlinedButton(
-                            onClick = onOpenSetup,
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Verifica permessi e avvio") }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
+                                .background(Color(0xFF3978C5))
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Backup",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Metti al sicuro attività, promemoria e routine.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                        exportBackupLauncher.launch("Faccio-io-backup-$date.json")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+                                ) { Text("Esporta") }
+                                OutlinedButton(
+                                    onClick = {
+                                        importBackupLauncher.launch(
+                                            arrayOf("application/json", "text/plain")
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 7.dp)
+                                ) { Text("Ripristina") }
+                            }
+                        }
                     }
                 }
 
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("Widget", style = MaterialTheme.typography.titleMedium)
-                        Text("Puoi aggiungere il widget Faccio io dalla schermata Home del telefono per vedere la prossima attività.")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
+                                .background(FaccioAmber)
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Configurazione",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Verifica notifiche, posizione, batteria e attività in background.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                            OutlinedButton(
+                                onClick = onOpenSetup,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
+                            ) { Text("Controlla impostazioni") }
+                        }
                     }
                 }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = FaccioCard),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
+                                .background(FaccioCoral)
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Widget",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Aggiungilo dalla schermata Home per vedere subito la prossima attività.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }
@@ -872,15 +980,56 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     if (showAssistant) {
         AlertDialog(
             onDismissRequest = { showAssistant = false },
-            title = { Text("Assistente IA") },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            tonalElevation = 3.dp,
+            titleContentColor = FaccioNavy,
+            textContentColor = FaccioMutedText,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 5.dp, height = 28.dp)
+                            .background(FaccioTeal, RoundedCornerShape(50))
+                    )
+                    Column {
+                        Text(
+                            "Assistente IA",
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioNavy
+                        )
+                        Text(
+                            "Trasforma una frase in un appuntamento",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FaccioMutedText
+                        )
+                    }
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Scrivi o detta una frase, ad esempio: Domani alle 15 dentista in via Roma 10.")
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Scrivi o detta ciò che devi fare. Per esempio: “Domani alle 15 dentista in via Roma 10”.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FaccioMutedText
+                    )
                     OutlinedTextField(
                         value = assistantText,
                         onValueChange = { assistantText = it },
-                        label = { Text("Descrivi l’appuntamento") },
-                        modifier = Modifier.fillMaxWidth()
+                        label = { Text("Cosa devo organizzare?") },
+                        placeholder = { Text("Data, ora, attività e luogo") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = FaccioTeal,
+                            focusedLabelColor = FaccioTeal,
+                            cursorColor = FaccioTeal
+                        )
                     )
                     OutlinedButton(
                         onClick = {
@@ -890,7 +1039,10 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                                 )
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "it-IT")
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Descrivi l’appuntamento")
+                                putExtra(
+                                    RecognizerIntent.EXTRA_PROMPT,
+                                    "Descrivi l’appuntamento"
+                                )
                             }
                             try {
                                 voiceLauncher.launch(intent)
@@ -902,14 +1054,22 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 ).show()
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = FaccioNavy
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = 12.dp,
+                            vertical = 7.dp
+                        )
                     ) {
-                        Text("Detta appuntamento")
+                        Text("Detta con la voce")
                     }
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         val parsed = parseAppointment(assistantText)
                         if (parsed == null) {
@@ -922,11 +1082,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             assistantResult = parsed
                             showAssistant = false
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
                 ) { Text("Interpreta") }
             },
             dismissButton = {
-                TextButton(onClick = { showAssistant = false }) { Text("Annulla") }
+                TextButton(
+                    onClick = { showAssistant = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
+                ) { Text("Annulla") }
             }
         )
     }
