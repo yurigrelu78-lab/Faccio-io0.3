@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 30448)
-Total output lines: 2736
-
 package it.faccioio.app
 
 import android.Manifest
@@ -1274,7 +1271,39 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         ) {
                             Toast.makeText(
                                 context,
-                  …448 tokens truncated…             category = assistantCategory,
+                                "Il promemoria deve essere futuro e precedente all’appuntamento",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@TextButton
+                        }
+                        val departure = departureEstimate
+                        val durationMinutes = selectedDurationMinutes(
+                            assistantDuration,
+                            assistantCustomDuration
+                        )
+                        if (durationMinutes !in 5..720) {
+                            Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
+                        if (departure != null && departure.departureTime <= System.currentTimeMillis()) {
+                            Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
+                        if (departure != null) {
+                            if (!scheduleReminder(context, "È ora di partire: ${appointment.title}", departure.departureTime)) return@TextButton
+                        }
+                        if (
+                            reminderTime != null &&
+                            !scheduleReminder(context, appointment.title, reminderTime)
+                        ) {
+                            return@TextButton
+                        }
+
+                        tasks.add(
+                            TaskItem(
+                                title = appointment.title,
+                                reminderTime = reminderTime,
+                                category = assistantCategory,
                                 priority = assistantPriority,
                                 appointmentTime = appointment.time,
                                 location = resolvedPlace?.address ?: appointment.location,
