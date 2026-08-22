@@ -147,6 +147,8 @@ fun FaccioIoApp() {
     var editedTitle by rememberSaveable { mutableStateOf("") }
     var editedCategory by rememberSaveable { mutableStateOf("Personale") }
     var editedPriority by rememberSaveable { mutableStateOf("Media") }
+    var editedAppointmentTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var categoryFilter by rememberSaveable { mutableStateOf("Tutte") }
     var priorityFilter by rememberSaveable { mutableStateOf("Tutte") }
     var showAssistant by rememberSaveable { mutableStateOf(false) }
@@ -406,6 +408,8 @@ fun FaccioIoApp() {
                                     editedTitle = task.title
                                     editedCategory = task.category
                                     editedPriority = task.priority
+                                    editedAppointmentTime = task.appointmentTime
+                                    editedReminderTime = task.reminderTime
                                 }
                             ) {
                                 Text("Modifica")
@@ -725,7 +729,10 @@ fun FaccioIoApp() {
                 onDismissRequest = { editingIndex = null },
                 title = { Text("Modifica attività") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         OutlinedTextField(
                             value = editedTitle,
                             onValueChange = { editedTitle = it },
@@ -739,6 +746,40 @@ fun FaccioIoApp() {
                             onValueSelected = { editedCategory = it },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        task.appointmentTime?.let { originalAppointmentTime ->
+                            OutlinedButton(
+                                onClick = {
+                                    showDateTimePicker(
+                                        context,
+                                        editedAppointmentTime ?: originalAppointmentTime
+                                    ) { selectedTime ->
+                                        val oldReminderTime = task.reminderTime
+                                        val oldLeadTime = if (oldReminderTime != null) {
+                                            (originalAppointmentTime - oldReminderTime)
+                                                .takeIf { it > 0L }
+                                                ?: 24L * 60L * 60L * 1000L
+                                        } else {
+                                            null
+                                        }
+                                        editedAppointmentTime = selectedTime
+                                        editedReminderTime = oldLeadTime?.let {
+                                            selectedTime - it
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "Appuntamento: ${formatReminderTime(editedAppointmentTime ?: originalAppointmentTime)}"
+                                )
+                            }
+                            editedReminderTime?.let { newReminderTime ->
+                                Text(
+                                    "Promemoria adattato: ${formatReminderTime(newReminderTime)}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
                         SelectionMenu(
                             label = "Priorità",
                             selectedValue = editedPriority,
@@ -759,26 +800,66 @@ fun FaccioIoApp() {
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
-                                val reminderTime = task.reminderTime
-                                val reminderStillActive =
-                                    reminderTime != null &&
-                                        reminderTime > System.currentTimeMillis()
+                                val now = System.currentTimeMillis()
+                                val newAppointmentTime =
+                                    editedAppointmentTime ?: task.appointmentTime
+                                val newReminderTime = editedReminderTime
+                                val appointmentChanged =
+                                    newAppointmentTime != task.appointmentTime
+                                val reminderChanged =
+                                    newReminderTime != task.reminderTime
+                                val titleChanged = newTitle != task.title
 
                                 if (
-                                    reminderStillActive &&
-                                    newTitle != task.title &&
-                                    reminderTime != null
+                                    appointmentChanged &&
+                                    newAppointmentTime != null &&
+                                    newAppointmentTime <= now
                                 ) {
-                                    if (!scheduleReminder(context, newTitle, reminderTime)) {
+                                    Toast.makeText(
+                                        context,
+                                        "L’appuntamento deve essere nel futuro",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@TextButton
+                                }
+                                if (
+                                    reminderChanged &&
+                                    newReminderTime != null &&
+                                    (newReminderTime <= now ||
+                                        (newAppointmentTime != null &&
+                                            newReminderTime >= newAppointmentTime))
+                                ) {
+                                    Toast.makeText(
+                                        context,
+                                        "Il nuovo promemoria deve essere futuro e precedente all’appuntamento",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@TextButton
+                                }
+
+                                val mustReschedule =
+                                    newReminderTime != null &&
+                                        newReminderTime > now &&
+                                        (reminderChanged || titleChanged)
+                                if (mustReschedule) {
+                                    if (!scheduleReminder(context, newTitle, newReminderTime)) {
                                         return@TextButton
                                     }
+                                }
+                                if (
+                                    task.reminderTime != null &&
+                                    (reminderChanged || titleChanged) &&
+                                    task.reminderTime > now
+                                ) {
                                     cancelReminder(context, task)
                                 }
 
                                 tasks[index] = task.copy(
                                     title = newTitle,
                                     category = editedCategory,
-                                    priority = editedPriority
+                                    priority = editedPriority,
+                                    appointmentTime = newAppointmentTime,
+                                    reminderTime = newReminderTime
                                 )
                                 saveTasks(context, tasks)
                                 editingIndex = null
@@ -853,8 +934,19 @@ private fun showReminderPicker(
     context: Context,
     onSelected: (Long) -> Unit
 ) {
-    val initialCalendar = Calendar.getInstance().apply {
+    val initialTime = Calendar.getInstance().apply {
         add(Calendar.MINUTE, 2)
+    }.timeInMillis
+    showDateTimePicker(context, initialTime, onSelected)
+}
+
+private fun showDateTimePicker(
+    context: Context,
+    initialTime: Long,
+    onSelected: (Long) -> Unit
+) {
+    val initialCalendar = Calendar.getInstance().apply {
+        timeInMillis = initialTime
     }
 
     DatePickerDialog(
