@@ -196,6 +196,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
     var mainSection by rememberSaveable { mutableStateOf("Oggi") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
+    var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
+    var customRoutineName by rememberSaveable { mutableStateOf("") }
+    var customRoutineCategory by rememberSaveable { mutableStateOf("Personale") }
+    var customRoutinePriority by rememberSaveable { mutableStateOf("Media") }
+    val customRoutineSteps = remember { mutableStateListOf("") }
+    val customRoutineTemplates = remember(context) {
+        mutableStateListOf<TaskItem>().apply { addAll(loadCustomRoutineTemplates(context)) }
+    }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -701,8 +709,11 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             onDismissRequest = { showRoutineTemplates = false },
             title = { Text("Scegli una routine") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    routineTemplates().forEach { template ->
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    (routineTemplates() + customRoutineTemplates).forEach { template ->
                         OutlinedButton(
                             onClick = {
                                 pendingTask = template.title
@@ -724,7 +735,27 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 )
                             }
                         }
+                        if (template in customRoutineTemplates) {
+                            TextButton(
+                                onClick = {
+                                    customRoutineTemplates.remove(template)
+                                    saveCustomRoutineTemplates(context, customRoutineTemplates)
+                                }
+                            ) { Text("Elimina modello") }
+                        }
                     }
+                    Button(
+                        onClick = {
+                            customRoutineName = ""
+                            customRoutineCategory = "Personale"
+                            customRoutinePriority = "Media"
+                            customRoutineSteps.clear()
+                            customRoutineSteps.add("")
+                            showRoutineTemplates = false
+                            showCustomRoutineEditor = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Crea routine personalizzata") }
                     Text(
                         "Dopo la scelta potrai configurare durata, ripetizione, promemoria e luogo.",
                         style = MaterialTheme.typography.bodySmall
@@ -734,6 +765,113 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showRoutineTemplates = false }) { Text("Annulla") }
+            }
+        )
+    }
+
+    if (showCustomRoutineEditor) {
+        AlertDialog(
+            onDismissRequest = { showCustomRoutineEditor = false },
+            title = { Text("Nuova routine") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = customRoutineName,
+                        onValueChange = { customRoutineName = it },
+                        label = { Text("Nome della routine") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SelectionMenu(
+                            "Categoria",
+                            customRoutineCategory,
+                            TASK_CATEGORIES,
+                            { customRoutineCategory = it },
+                            Modifier.weight(1f)
+                        )
+                        SelectionMenu(
+                            "Priorità",
+                            customRoutinePriority,
+                            TASK_PRIORITIES,
+                            { customRoutinePriority = it },
+                            Modifier.weight(1f)
+                        )
+                    }
+                    Text("Passaggi", fontWeight = FontWeight.SemiBold)
+                    customRoutineSteps.forEachIndexed { index, step ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = step,
+                                onValueChange = { customRoutineSteps[index] = it },
+                                label = { Text("Passaggio ${index + 1}") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = {
+                                    if (customRoutineSteps.size > 1) {
+                                        customRoutineSteps.removeAt(index)
+                                    } else {
+                                        customRoutineSteps[0] = ""
+                                    }
+                                }
+                            ) { Text("Rimuovi") }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { customRoutineSteps.add("") },
+                        enabled = customRoutineSteps.size < 20,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Aggiungi passaggio") }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val name = customRoutineName.trim()
+                        val steps = customRoutineSteps.map(String::trim).filter(String::isNotBlank)
+                        if (name.isBlank() || steps.isEmpty()) {
+                            Toast.makeText(context, "Inserisci un nome e almeno un passaggio", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
+                        if ((routineTemplates() + customRoutineTemplates).any {
+                                it.title.equals(name, ignoreCase = true)
+                            }) {
+                            Toast.makeText(context, "Esiste già una routine con questo nome", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
+                        val template = TaskItem(
+                            title = name,
+                            category = customRoutineCategory,
+                            priority = customRoutinePriority,
+                            durationMinutes = (steps.size * 5).coerceAtLeast(10),
+                            routineSteps = steps.map { RoutineStep(it) }
+                        )
+                        customRoutineTemplates.add(template)
+                        saveCustomRoutineTemplates(context, customRoutineTemplates)
+                        pendingTask = template.title
+                        pendingCategory = template.category
+                        pendingPriority = template.priority
+                        pendingRoutineSteps = template.routineSteps
+                        taskDuration = durationOption(template.durationMinutes)
+                        taskCustomDuration = template.durationMinutes.toString()
+                        showCustomRoutineEditor = false
+                        showReminderChoice = true
+                    }
+                ) { Text("Salva e configura") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomRoutineEditor = false }) { Text("Annulla") }
             }
         )
     }
@@ -1783,6 +1921,54 @@ private fun routineTemplates(): List<TaskItem> = listOf(
         )
     )
 )
+
+private const val ROUTINE_TEMPLATE_PREFS = "faccio_io_routine_templates"
+private const val ROUTINE_TEMPLATE_KEY = "custom_templates"
+
+private fun loadCustomRoutineTemplates(context: Context): List<TaskItem> {
+    val saved = context.getSharedPreferences(ROUTINE_TEMPLATE_PREFS, Context.MODE_PRIVATE)
+        .getString(ROUTINE_TEMPLATE_KEY, null) ?: return emptyList()
+    return try {
+        val array = JSONArray(saved)
+        List(array.length()) { index ->
+            val item = array.getJSONObject(index)
+            val steps = item.optJSONArray("steps") ?: JSONArray()
+            TaskItem(
+                title = item.optString("title"),
+                category = item.optString("category", "Personale"),
+                priority = item.optString("priority", "Media"),
+                durationMinutes = item.optInt("durationMinutes", 15).coerceIn(5, 720),
+                routineSteps = List(steps.length()) { stepIndex ->
+                    RoutineStep(steps.optString(stepIndex))
+                }.filter { it.title.isNotBlank() }
+            )
+        }.filter { it.title.isNotBlank() && it.routineSteps.isNotEmpty() }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun saveCustomRoutineTemplates(context: Context, templates: List<TaskItem>) {
+    val array = JSONArray()
+    templates.forEach { template ->
+        array.put(
+            JSONObject().apply {
+                put("title", template.title)
+                put("category", template.category)
+                put("priority", template.priority)
+                put("durationMinutes", template.durationMinutes)
+                put(
+                    "steps",
+                    JSONArray().apply {
+                        template.routineSteps.forEach { put(it.title) }
+                    }
+                )
+            }
+        )
+    }
+    context.getSharedPreferences(ROUTINE_TEMPLATE_PREFS, Context.MODE_PRIVATE)
+        .edit().putString(ROUTINE_TEMPLATE_KEY, array.toString()).apply()
+}
 
 private fun shiftRecurringTime(time: Long, task: TaskItem): Long =
     Calendar.getInstance().apply {
