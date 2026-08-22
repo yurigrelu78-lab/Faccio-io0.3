@@ -1011,6 +1011,11 @@ private fun resolvePlace(
     }
 
     val geocoder = Geocoder(context, Locale.ITALIAN)
+    val searchQuery = if (query.contains("italia", ignoreCase = true)) {
+        query
+    } else {
+        "$query, Italia"
+    }
     val deliver: (List<Address>?) -> Unit = { addresses ->
         val address = addresses?.firstOrNull()
         val place = address?.let {
@@ -1025,7 +1030,7 @@ private fun resolvePlace(
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         geocoder.getFromLocationName(
-            query,
+            searchQuery,
             1,
             object : Geocoder.GeocodeListener {
                 override fun onGeocode(addresses: MutableList<Address>) {
@@ -1041,7 +1046,7 @@ private fun resolvePlace(
         Thread {
             val addresses = try {
                 @Suppress("DEPRECATION")
-                geocoder.getFromLocationName(query, 1)
+                geocoder.getFromLocationName(searchQuery, 1)
             } catch (_: Exception) {
                 null
             }
