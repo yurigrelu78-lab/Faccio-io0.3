@@ -111,7 +111,8 @@ data class TaskItem(
     val appointmentTime: Long? = null,
     val location: String? = null,
     val latitude: Double? = null,
-    val longitude: Double? = null
+    val longitude: Double? = null,
+    val arrivalReminderId: String? = null
 )
 
 data class ResolvedPlace(
@@ -394,6 +395,28 @@ fun FaccioIoApp() {
                                         }
                                     ) {
                                         Text("Apri nella mappa")
+                                    }
+                                }
+                                if (task.appointmentTime != null && task.latitude != null && task.longitude != null) {
+                                    if (task.arrivalReminderId == null) {
+                                        TextButton(onClick = {
+                                            if (!ensureLocationPermissions(context)) return@TextButton
+                                            val id = arrivalGeofenceId(task)
+                                            registerArrivalGeofence(context, id, task.title, task.latitude, task.longitude) { ok ->
+                                                if (ok) {
+                                                    tasks[index] = task.copy(arrivalReminderId = id)
+                                                    saveTasks(context, tasks)
+                                                    Toast.makeText(context, "Promemoria all’arrivo attivato", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }) { Text("Avvisami quando arrivo") }
+                                    } else {
+                                        Text("Promemoria all’arrivo attivo · 200 m", style = MaterialTheme.typography.bodySmall)
+                                        TextButton(onClick = {
+                                            removeArrivalGeofence(context, task.arrivalReminderId)
+                                            tasks[index] = task.copy(arrivalReminderId = null)
+                                            saveTasks(context, tasks)
+                                        }) { Text("Disattiva arrivo") }
                                     }
                                 }
                             }
@@ -905,6 +928,7 @@ fun FaccioIoApp() {
                     TextButton(
                         onClick = {
                             cancelReminder(context, task)
+                            task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
                             tasks.removeAt(index)
                             saveTasks(context, tasks)
                             deletingIndex = null
@@ -1194,7 +1218,9 @@ private fun parseTasks(
                     item.optString("location").takeIf { it.isNotBlank() }
                 },
                 latitude = if (item.isNull("latitude")) null else item.optDouble("latitude"),
-                longitude = if (item.isNull("longitude")) null else item.optDouble("longitude")
+                longitude = if (item.isNull("longitude")) null else item.optDouble("longitude"),
+                arrivalReminderId = if (item.isNull("arrivalReminderId")) null
+                    else item.optString("arrivalReminderId").takeIf { it.isNotBlank() }
             )
         }
     } catch (_: Exception) {
@@ -1202,7 +1228,7 @@ private fun parseTasks(
     }
 }
 
-private fun saveTasks(context: Context, tasks: List<TaskItem>) {
+internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
     val array = JSONArray()
     tasks.forEach { task ->
         array.put(
@@ -1216,6 +1242,7 @@ private fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("location", task.location ?: JSONObject.NULL)
                 put("latitude", task.latitude ?: JSONObject.NULL)
                 put("longitude", task.longitude ?: JSONObject.NULL)
+                put("arrivalReminderId", task.arrivalReminderId ?: JSONObject.NULL)
             }
         )
     }
