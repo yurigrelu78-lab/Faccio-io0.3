@@ -160,6 +160,8 @@ fun FaccioIoApp() {
     var customAppointmentReminderTime by rememberSaveable {
         mutableStateOf<Long?>(null)
     }
+    var assistantCategory by rememberSaveable { mutableStateOf("Personale") }
+    var assistantPriority by rememberSaveable { mutableStateOf("Media") }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -481,9 +483,11 @@ fun FaccioIoApp() {
     }
 
     assistantResult?.let { appointment ->
-        LaunchedEffect(appointment.time) {
+        LaunchedEffect(appointment.time, appointment.title) {
             appointmentReminderOption = "24 ore prima"
             customAppointmentReminderTime = null
+            assistantCategory = suggestAppointmentCategory(appointment.title)
+            assistantPriority = suggestAppointmentPriority(appointment.title)
         }
 
         LaunchedEffect(appointment.location) {
@@ -535,6 +539,25 @@ fun FaccioIoApp() {
                         ) {
                             Text("Controlla sulla mappa")
                         }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SelectionMenu(
+                            label = "Categoria",
+                            selectedValue = assistantCategory,
+                            values = TASK_CATEGORIES,
+                            onValueSelected = { assistantCategory = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                        SelectionMenu(
+                            label = "Priorità",
+                            selectedValue = assistantPriority,
+                            values = TASK_PRIORITIES,
+                            onValueSelected = { assistantPriority = it },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                     SelectionMenu(
                         label = "Promemoria",
@@ -620,8 +643,8 @@ fun FaccioIoApp() {
                             TaskItem(
                                 title = appointment.title,
                                 reminderTime = reminderTime,
-                                category = "Personale",
-                                priority = "Media",
+                                category = assistantCategory,
+                                priority = assistantPriority,
                                 appointmentTime = appointment.time,
                                 location = resolvedPlace?.address ?: appointment.location,
                                 latitude = resolvedPlace?.latitude,
@@ -873,6 +896,38 @@ private fun appointmentReminderTime(
             else -> add(Calendar.HOUR_OF_DAY, -24)
         }
     }.timeInMillis
+}
+
+private fun suggestAppointmentCategory(title: String): String {
+    val text = title.lowercase(Locale.ITALIAN)
+    return when {
+        listOf(
+            "dentista", "medico", "visita", "farmacia", "ospedale",
+            "terapia", "analisi", "palestra", "salute"
+        ).any { it in text } -> "Salute"
+        listOf(
+            "riunione", "cliente", "ufficio", "lavoro", "collega",
+            "consegna", "progetto", "responsabile"
+        ).any { it in text } -> "Lavoro"
+        listOf(
+            "spesa", "casa", "bolletta", "pulizia", "manutenzione",
+            "idraulico", "elettricista", "tecnico"
+        ).any { it in text } -> "Casa"
+        else -> "Personale"
+    }
+}
+
+private fun suggestAppointmentPriority(title: String): String {
+    val text = title.lowercase(Locale.ITALIAN)
+    return when {
+        listOf(
+            "urgente", "importante", "scadenza", "subito", "priorità alta"
+        ).any { it in text } -> "Alta"
+        listOf(
+            "facoltativo", "se possibile", "quando posso", "priorità bassa"
+        ).any { it in text } -> "Bassa"
+        else -> "Media"
+    }
 }
 
 private fun scheduleReminder(
