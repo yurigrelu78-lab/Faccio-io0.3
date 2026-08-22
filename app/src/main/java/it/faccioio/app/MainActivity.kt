@@ -1551,7 +1551,7 @@ private fun suggestAppointmentPriority(title: String): String {
     }
 }
 
-private fun scheduleReminder(
+internal fun scheduleReminder(
     context: Context,
     taskTitle: String,
     reminderTime: Long
@@ -1572,18 +1572,21 @@ private fun scheduleReminder(
         val permissionIntent = Intent(
             Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
             android.net.Uri.parse("package:${context.packageName}")
-        )
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         try {
             context.startActivity(permissionIntent)
         } catch (_: Exception) {
-            context.startActivity(Intent(Settings.ACTION_SETTINGS))
+            context.startActivity(
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
         }
         return false
     }
 
     val reminderIntent = Intent(context, ReminderReceiver::class.java).apply {
         putExtra("task_title", taskTitle)
+        putExtra("reminder_time", reminderTime)
     }
     val requestCode = reminderRequestCode(taskTitle, reminderTime)
     val pendingIntent = PendingIntent.getBroadcast(
