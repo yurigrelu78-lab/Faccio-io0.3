@@ -100,8 +100,8 @@ data class TaskItem(
     val priority: String = "Media"
 )
 
-private const val TASK_PREFS = "faccio_io_tasks"
-private const val TASKS_KEY = "saved_tasks"
+internal const val TASK_PREFS = "faccio_io_tasks"
+internal const val TASKS_KEY = "saved_tasks"
 private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
 
@@ -561,7 +561,7 @@ private fun cancelReminder(context: Context, task: TaskItem) {
     pendingIntent.cancel()
 }
 
-private fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
+internal fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
     (reminderTime xor taskTitle.hashCode().toLong()).hashCode()
 
 private fun formatReminderTime(time: Long): String =
@@ -609,7 +609,7 @@ private fun priorityColor(priority: String) = when (priority) {
     else -> MaterialTheme.colorScheme.primary
 }
 
-private fun loadTasks(context: Context): List<TaskItem> {
+internal fun loadTasks(context: Context): List<TaskItem> {
     val preferences = context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
     val savedJson = preferences.getString(TASKS_KEY, null)
         ?: return defaultTasks()
