@@ -980,15 +980,56 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     if (showAssistant) {
         AlertDialog(
             onDismissRequest = { showAssistant = false },
-            title = { Text("Assistente IA") },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            tonalElevation = 3.dp,
+            titleContentColor = FaccioNavy,
+            textContentColor = FaccioMutedText,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 5.dp, height = 28.dp)
+                            .background(FaccioTeal, RoundedCornerShape(50))
+                    )
+                    Column {
+                        Text(
+                            "Assistente IA",
+                            fontWeight = FontWeight.Bold,
+                            color = FaccioNavy
+                        )
+                        Text(
+                            "Trasforma una frase in un appuntamento",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FaccioMutedText
+                        )
+                    }
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Scrivi o detta una frase, ad esempio: Domani alle 15 dentista in via Roma 10.")
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Scrivi o detta ciò che devi fare. Per esempio: “Domani alle 15 dentista in via Roma 10”.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FaccioMutedText
+                    )
                     OutlinedTextField(
                         value = assistantText,
                         onValueChange = { assistantText = it },
-                        label = { Text("Descrivi l’appuntamento") },
-                        modifier = Modifier.fillMaxWidth()
+                        label = { Text("Cosa devo organizzare?") },
+                        placeholder = { Text("Data, ora, attività e luogo") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = FaccioTeal,
+                            focusedLabelColor = FaccioTeal,
+                            cursorColor = FaccioTeal
+                        )
                     )
                     OutlinedButton(
                         onClick = {
@@ -998,7 +1039,10 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                                 )
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "it-IT")
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Descrivi l’appuntamento")
+                                putExtra(
+                                    RecognizerIntent.EXTRA_PROMPT,
+                                    "Descrivi l’appuntamento"
+                                )
                             }
                             try {
                                 voiceLauncher.launch(intent)
@@ -1010,14 +1054,22 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                 ).show()
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = FaccioNavy
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = 12.dp,
+                            vertical = 7.dp
+                        )
                     ) {
-                        Text("Detta appuntamento")
+                        Text("Detta con la voce")
                     }
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         val parsed = parseAppointment(assistantText)
                         if (parsed == null) {
@@ -1030,11 +1082,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             assistantResult = parsed
                             showAssistant = false
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
                 ) { Text("Interpreta") }
             },
             dismissButton = {
-                TextButton(onClick = { showAssistant = false }) { Text("Annulla") }
+                TextButton(
+                    onClick = { showAssistant = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
+                ) { Text("Annulla") }
             }
         )
     }
