@@ -1,5 +1,6 @@
 package it.faccioio.app
 
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,6 +11,31 @@ class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val title = intent.getStringExtra("task_title") ?: "Promemoria"
+        val reminderTime = intent.getLongExtra("reminder_time", 0L)
+        val notificationId = (title.hashCode() xor reminderTime.hashCode())
+
+        fun snoozeAction(action: String, label: String): NotificationCompat.Action {
+            val snoozeIntent = Intent(context, SnoozeReceiver::class.java).apply {
+                this.action = action
+                putExtra("task_title", title)
+                putExtra("reminder_time", reminderTime)
+                putExtra("notification_id", notificationId)
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                (notificationId * 31) + action.hashCode(),
+                snoozeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            return NotificationCompat.Action.Builder(0, label, pendingIntent).build()
+        }
+
+        val openAppIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notification = NotificationCompat.Builder(context, "faccio_io_reminders_v2")
     .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -18,11 +44,15 @@ class ReminderReceiver : BroadcastReceiver() {
     .setPriority(NotificationCompat.PRIORITY_HIGH)
     .setDefaults(NotificationCompat.DEFAULT_ALL)
     .setVibrate(longArrayOf(0, 500, 300, 500))
+    .setContentIntent(openAppIntent)
+    .addAction(snoozeAction(SnoozeReceiver.ACTION_ONE_HOUR, "Tra un’ora"))
+    .addAction(snoozeAction(SnoozeReceiver.ACTION_THIS_EVENING, "Questa sera"))
+    .addAction(snoozeAction(SnoozeReceiver.ACTION_TOMORROW, "Domani"))
     .setAutoCancel(true)
     .build()
 
         NotificationManagerCompat.from(context).notify(
-            System.currentTimeMillis().toInt(),
+            notificationId,
             notification
         )
     }
