@@ -176,6 +176,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var departureTransport by rememberSaveable { mutableStateOf("Auto") }
     var departureSafety by rememberSaveable { mutableStateOf("Normale") }
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
+    var mainSection by rememberSaveable { mutableStateOf("Oggi") }
 
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -254,7 +255,50 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             style = MaterialTheme.typography.bodyLarge
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (mainSection == "Oggi") {
+                Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Oggi") }
+            } else {
+                OutlinedButton(
+                    onClick = { mainSection = "Oggi" },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Oggi") }
+            }
+            if (mainSection == "Attività") {
+                Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Attività") }
+            } else {
+                OutlinedButton(
+                    onClick = { mainSection = "Attività" },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Attività") }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (mainSection == "Oggi") {
+            TodayAgenda(
+                tasks = tasks,
+                onCompletedChange = { index, completed ->
+                    tasks[index] = tasks[index].copy(completed = completed)
+                    saveTasks(context, tasks)
+                },
+                onOpenMap = { task ->
+                    openPlaceOnMap(
+                        context,
+                        task.location.orEmpty(),
+                        task.latitude,
+                        task.longitude
+                    )
+                },
+                modifier = Modifier.weight(1f)
+            )
+        } else {
 
         OutlinedTextField(
             value = newTask,
@@ -515,6 +559,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                     }
                 }
             }
+        }
         }
     }
 
@@ -1109,6 +1154,174 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         }
     }
 }
+
+private data class AgendaEntry(
+    val index: Int,
+    val task: TaskItem,
+    val time: Long
+)
+
+@Composable
+private fun TodayAgenda(
+    tasks: List<TaskItem>,
+    onCompletedChange: (Int, Boolean) -> Unit,
+    onOpenMap: (TaskItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val now = System.currentTimeMillis()
+    val todayCalendar = Calendar.getInstance()
+    val scheduled = tasks.mapIndexedNotNull { index, task ->
+        val time = task.appointmentTime ?: task.reminderTime
+        if (time != null && isSameDay(time, todayCalendar.timeInMillis)) {
+            AgendaEntry(index, task, time)
+        } else null
+    }.sortedBy { it.time }
+    val unscheduled = tasks.mapIndexedNotNull { index, task ->
+        if (!task.completed && task.appointmentTime == null && task.reminderTime == null) {
+            index to task
+        } else null
+    }.sortedWith(
+        compareBy<Pair<Int, TaskItem>> { priorityOrder(it.second.priority) }
+            .thenBy { it.first }
+    )
+    val nextEntry = scheduled.firstOrNull { !it.task.completed && it.time >= now }
+
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Text(
+                text = SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
+                    .format(Date()).replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = agendaSummary(scheduled, unscheduled.size),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        if (nextEntry != null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("PROSSIMO IMPEGNO", style = MaterialTheme.typography.labelMedium)
+                        Text(nextEntry.task.title, fontWeight = FontWeight.Bold)
+                        Text(agendaTimeText(nextEntry.task, nextEntry.time))
+                        nextEntry.task.departureTime?.takeIf { it >= now }?.let {
+                            Text("Partenza consigliata: ${formatHour(it)}")
+                        }
+                        nextEntry.task.location?.let { Text(it) }
+                    }
+                }
+            }
+        }
+
+        if (scheduled.isNotEmpty()) {
+            item { Text("La giornata", fontWeight = FontWeight.SemiBold) }
+            items(scheduled) { entry ->
+                AgendaTaskCard(
+                    task = entry.task,
+                    leadingText = formatHour(entry.time),
+                    onCompletedChange = { onCompletedChange(entry.index, it) },
+                    onOpenMap = onOpenMap
+                )
+            }
+        }
+
+        if (unscheduled.isNotEmpty()) {
+            item { Text("Da fare senza orario", fontWeight = FontWeight.SemiBold) }
+            items(unscheduled) { (index, task) ->
+                AgendaTaskCard(
+                    task = task,
+                    leadingText = task.priority,
+                    onCompletedChange = { onCompletedChange(index, it) },
+                    onOpenMap = onOpenMap
+                )
+            }
+        }
+
+        if (scheduled.isEmpty() && unscheduled.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp)) {
+                        Text("Nessun impegno per oggi", fontWeight = FontWeight.Bold)
+                        Text("Puoi aggiungere una nuova attività dalla sezione Attività.")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AgendaTaskCard(
+    task: TaskItem,
+    leadingText: String,
+    onCompletedChange: (Boolean) -> Unit,
+    onOpenMap: (TaskItem) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                leadingText,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(58.dp)
+            )
+            Checkbox(checked = task.completed, onCheckedChange = onCompletedChange)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(task.title, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${task.category} • Priorità ${task.priority}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = priorityColor(task.priority)
+                )
+                task.departureTime?.let { Text("Partenza: ${formatHour(it)}", style = MaterialTheme.typography.bodySmall) }
+                task.location?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                if (task.location != null) {
+                    TextButton(onClick = { onOpenMap(task) }) { Text("Mappa") }
+                }
+            }
+        }
+    }
+}
+
+private fun isSameDay(first: Long, second: Long): Boolean {
+    val a = Calendar.getInstance().apply { timeInMillis = first }
+    val b = Calendar.getInstance().apply { timeInMillis = second }
+    return a.get(Calendar.ERA) == b.get(Calendar.ERA) &&
+        a.get(Calendar.YEAR) == b.get(Calendar.YEAR) &&
+        a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
+}
+
+private fun priorityOrder(priority: String): Int = when (priority) {
+    "Alta" -> 0
+    "Media" -> 1
+    else -> 2
+}
+
+private fun agendaSummary(scheduled: List<AgendaEntry>, unscheduledCount: Int): String {
+    val appointments = scheduled.count { it.task.appointmentTime != null }
+    val timedTasks = scheduled.size - appointments
+    return "$appointments appuntamenti • $timedTasks attività con orario • $unscheduledCount senza orario"
+}
+
+private fun agendaTimeText(task: TaskItem, time: Long): String =
+    if (task.appointmentTime != null) "Appuntamento alle ${formatHour(time)}"
+    else "Promemoria alle ${formatHour(time)}"
+
+private fun formatHour(time: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
 
 private fun showReminderPicker(
     context: Context,
