@@ -31,20 +31,26 @@ class BootReceiver : BroadcastReceiver() {
 
         val now = System.currentTimeMillis()
         loadTasksForBoot(context)
-            .filter { task ->
-                task.reminderTime != null &&
-                    task.reminderTime > now &&
-                    !task.completed
+            .filter { !it.completed }
+            .flatMap { task ->
+                buildList {
+                    task.reminderTime?.takeIf { it > now }?.let {
+                        add(AlarmToRestore(task.title, it))
+                    }
+                    task.departureTime?.takeIf { it > now }?.let {
+                        add(AlarmToRestore("È ora di partire: ${task.title}", it))
+                    }
+                }
             }
-            .forEach { task ->
-                val reminderTime = task.reminderTime ?: return@forEach
+            .forEach { alarm ->
                 val reminderIntent =
                     Intent(context, ReminderReceiver::class.java).apply {
-                        putExtra("task_title", task.title)
+                        putExtra("task_title", alarm.title)
+                        putExtra("reminder_time", alarm.time)
                     }
                 val pendingIntent = PendingIntent.getBroadcast(
                     context,
-                    reminderRequestCode(task.title, reminderTime),
+                    reminderRequestCode(alarm.title, alarm.time),
                     reminderIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or
                         PendingIntent.FLAG_IMMUTABLE
@@ -53,7 +59,7 @@ class BootReceiver : BroadcastReceiver() {
                 try {
                     alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
-                        reminderTime,
+                        alarm.time,
                         pendingIntent
                     )
                 } catch (_: SecurityException) {
@@ -62,3 +68,5 @@ class BootReceiver : BroadcastReceiver() {
             }
     }
 }
+
+private data class AlarmToRestore(val title: String, val time: Long)

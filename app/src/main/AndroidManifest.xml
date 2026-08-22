@@ -17,6 +17,7 @@
     android:name=".ReminderReceiver"
     android:directBootAware="true"
     android:exported="false" />
+        <receiver android:name=".SnoozeReceiver" android:exported="false" />
         <receiver android:name=".GeofenceReceiver" android:exported="false" />
         <receiver
             android:name=".BootReceiver"
