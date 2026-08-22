@@ -89,7 +89,7 @@ data class TaskItem(
 @Composable
 fun FaccioIoApp() {
     var newTask by remember { mutableStateOf("") }
-var reminderTime by remember { mutableStateOf<Long?>(null) }
+var reminderTime by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Long?>(null) }
 val context = LocalContext.current
     val tasks = remember {
         mutableStateListOf(
@@ -135,8 +135,15 @@ val context = LocalContext.current
                 TimePickerDialog(
                     context,
                     { _, hour, minute ->
+                        calendar.clear()
                         calendar.set(year, month, day, hour, minute, 0)
                         reminderTime = calendar.timeInMillis
+
+                        android.widget.Toast.makeText(
+                            context,
+                            "Data e ora del promemoria memorizzate",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     },
                     calendar.get(Calendar.HOUR_OF_DAY),
                     calendar.get(Calendar.MINUTE),
@@ -153,14 +160,57 @@ val context = LocalContext.current
     Text("Imposta promemoria")
 }
 
+reminderTime?.let { selectedTime ->
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = "Promemoria: " +
+            java.text.SimpleDateFormat(
+                "dd/MM/yyyy HH:mm",
+                java.util.Locale.getDefault()
+            ).format(java.util.Date(selectedTime)),
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
 Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = addTask@{
                 val text = newTask.trim()
+
+                if (text.isEmpty()) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Scrivi prima il nome dell’attività",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    return@addTask
+                }
+
+                val validatedReminder = reminderTime
+
+                if (validatedReminder == null) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Imposta prima data e ora del promemoria",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    return@addTask
+                }
+
+                if (validatedReminder <= System.currentTimeMillis()) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Scegli un orario futuro",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    return@addTask
+                }
+
                 if (text.isNotEmpty()) {
 
-    val selectedReminder = reminderTime
+    val selectedReminder = validatedReminder
 
     if (
         selectedReminder != null &&
