@@ -449,7 +449,7 @@ fun FaccioIoApp() {
                         if (parsed == null) {
                             Toast.makeText(
                                 context,
-                                "Inserisci almeno data, ora e descrizione",
+                                "Non ho riconosciuto data, ora o descrizione. Controlla il testo dettato.",
                                 Toast.LENGTH_LONG
                             ).show()
                         } else {
