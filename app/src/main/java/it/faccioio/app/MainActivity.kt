@@ -1886,8 +1886,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             assistantDuration,
                             assistantCustomDuration
                         )
-                        if (durationMinutes !in 5..720) {
-                            Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
+                        if (durationMinutes !in 30..720 || durationMinutes % 30 != 0) {
+                            Toast.makeText(context, "Scegli una durata da 0,5 a 12 ore in intervalli di mezz’ora", Toast.LENGTH_LONG).show()
                             return@TextButton
                         }
                         if (departure != null && departure.departureTime <= System.currentTimeMillis()) {
@@ -2218,8 +2218,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         val needsPlace = taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi"
                         val recurrenceDays = 1
                         val durationMinutes = selectedDurationMinutes(taskDuration, taskCustomDuration)
-                        if (durationMinutes !in 5..720) {
-                            Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show(); return@TextButton
+                        if (durationMinutes !in 30..720 || durationMinutes % 30 != 0) {
+                            Toast.makeText(context, "Scegli una durata da 0,5 a 12 ore in intervalli di mezz’ora", Toast.LENGTH_LONG).show(); return@TextButton
                         }
                         if (taskRecurrence == "Personalizzata" && taskRecurrenceWeekdays.isEmpty()) {
                             Toast.makeText(context, "Seleziona almeno un giorno della settimana", Toast.LENGTH_LONG).show(); return@TextButton
@@ -2362,8 +2362,8 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             } else {
                                 val recurrenceDays = 1
                                 val durationMinutes = selectedDurationMinutes(editedDuration, editedCustomDuration)
-                                if (durationMinutes !in 5..720) {
-                                    Toast.makeText(context, "Inserisci una durata da 5 minuti a 12 ore", Toast.LENGTH_LONG).show()
+                                if (durationMinutes !in 30..720 || durationMinutes % 30 != 0) {
+                                    Toast.makeText(context, "Scegli una durata da 0,5 a 12 ore in intervalli di mezz’ora", Toast.LENGTH_LONG).show()
                                     return@TextButton
                                 }
                                 if (editedRecurrence == "Personalizzata" && editedRecurrenceWeekdays.isEmpty()) {
@@ -2913,19 +2913,29 @@ private fun formatHour(time: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
 
 private fun durationOption(minutes: Int): String = when (minutes) {
-    15 -> "15 minuti"
-    30 -> "30 minuti"
+    30 -> "0,5 ore"
     60 -> "1 ora"
     120 -> "2 ore"
     else -> "Personalizzata"
 }
 
 private fun selectedDurationMinutes(option: String, customValue: String): Int = when (option) {
-    "15 minuti" -> 15
-    "30 minuti" -> 30
+    "0,5 ore" -> 30
     "1 ora" -> 60
     "2 ore" -> 120
     else -> customValue.toIntOrNull() ?: 0
+}
+
+private val HALF_HOUR_DURATIONS = (1..24).map { it * 30 }
+
+private fun formatDurationHours(minutes: Int): String {
+    val halfHours = minutes.coerceIn(30, 720) / 30
+    return when {
+        halfHours == 1 -> "0,5 ore"
+        halfHours == 2 -> "1 ora"
+        halfHours % 2 == 0 -> "${halfHours / 2} ore"
+        else -> "${halfHours / 2},5 ore"
+    }
 }
 
 private fun formatDuration(minutes: Int): String {
@@ -3008,17 +3018,31 @@ private fun DurationSelector(
     SelectionMenu(
         label = "Durata",
         selectedValue = selected,
-        values = listOf("15 minuti", "30 minuti", "1 ora", "2 ore", "Personalizzata"),
+        values = listOf("0,5 ore", "1 ora", "2 ore", "Personalizzata"),
         onValueSelected = onSelected,
         modifier = Modifier.fillMaxWidth()
     )
     if (selected == "Personalizzata") {
-        OutlinedTextField(
-            value = customValue,
-            onValueChange = { onCustomChanged(it.filter(Char::isDigit).take(3)) },
-            label = { Text("Durata in minuti (5–720)") },
-            singleLine = true,
+        val currentMinutes = customValue.toIntOrNull()
+            ?.let { ((it + 15) / 30 * 30).coerceIn(30, 720) }
+            ?: 30
+        SelectionMenu(
+            label = "Ore",
+            selectedValue = formatDurationHours(currentMinutes),
+            values = HALF_HOUR_DURATIONS.map(::formatDurationHours),
+            onValueSelected = { label ->
+                val selectedIndex = HALF_HOUR_DURATIONS
+                    .indexOfFirst { formatDurationHours(it) == label }
+                if (selectedIndex >= 0) {
+                    onCustomChanged(HALF_HOUR_DURATIONS[selectedIndex].toString())
+                }
+            },
             modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            "Da 0,5 a 12 ore, con intervalli di mezz’ora.",
+            style = MaterialTheme.typography.bodySmall,
+            color = FaccioMutedText
         )
     }
 }
