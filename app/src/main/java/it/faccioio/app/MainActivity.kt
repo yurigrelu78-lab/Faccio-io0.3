@@ -95,11 +95,15 @@ class MainActivity : ComponentActivity() {
 data class TaskItem(
     val title: String,
     val completed: Boolean = false,
-    val reminderTime: Long? = null
+    val reminderTime: Long? = null,
+    val category: String = "Personale",
+    val priority: String = "Media"
 )
 
 private const val TASK_PREFS = "faccio_io_tasks"
 private const val TASKS_KEY = "saved_tasks"
+private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
+private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
 
 @Composable
 fun FaccioIoApp() {
@@ -107,9 +111,15 @@ fun FaccioIoApp() {
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
     var showReminderChoice by rememberSaveable { mutableStateOf(false) }
+    var selectedCategory by rememberSaveable { mutableStateOf("Personale") }
+    var selectedPriority by rememberSaveable { mutableStateOf("Media") }
+    var pendingCategory by rememberSaveable { mutableStateOf("Personale") }
+    var pendingPriority by rememberSaveable { mutableStateOf("Media") }
     var editingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var deletingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var editedTitle by rememberSaveable { mutableStateOf("") }
+    var editedCategory by rememberSaveable { mutableStateOf("Personale") }
+    var editedPriority by rememberSaveable { mutableStateOf("Media") }
 
     val tasks = remember(context) {
         mutableStateListOf<TaskItem>().apply {
@@ -118,10 +128,21 @@ fun FaccioIoApp() {
     }
 
     fun addPendingTask(reminderTime: Long? = null) {
-        tasks.add(TaskItem(pendingTask, reminderTime = reminderTime))
+        tasks.add(
+            TaskItem(
+                title = pendingTask,
+                reminderTime = reminderTime,
+                category = pendingCategory,
+                priority = pendingPriority
+            )
+        )
         saveTasks(context, tasks)
         newTask = ""
         pendingTask = ""
+        selectedCategory = "Personale"
+        selectedPriority = "Media"
+        pendingCategory = "Personale"
+        pendingPriority = "Media"
         showReminderChoice = false
     }
 
@@ -149,6 +170,28 @@ fun FaccioIoApp() {
             modifier = Modifier.fillMaxWidth()
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SelectionMenu(
+                label = "Categoria",
+                selectedValue = selectedCategory,
+                values = TASK_CATEGORIES,
+                onValueSelected = { selectedCategory = it },
+                modifier = Modifier.weight(1f)
+            )
+            SelectionMenu(
+                label = "Priorità",
+                selectedValue = selectedPriority,
+                values = TASK_PRIORITIES,
+                onValueSelected = { selectedPriority = it },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
@@ -162,6 +205,8 @@ fun FaccioIoApp() {
                     ).show()
                 } else {
                     pendingTask = text
+                    pendingCategory = selectedCategory
+                    pendingPriority = selectedPriority
                     showReminderChoice = true
                 }
             },
@@ -198,6 +243,11 @@ fun FaccioIoApp() {
 
                             Column(modifier = Modifier.padding(start = 8.dp)) {
                                 Text(text = task.title)
+                                Text(
+                                    text = "${task.category} • Priorità ${task.priority}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = priorityColor(task.priority)
+                                )
                                 task.reminderTime?.let { selectedTime ->
                                     Text(
                                         text = "Promemoria: ${formatReminderTime(selectedTime)}",
@@ -214,6 +264,8 @@ fun FaccioIoApp() {
                                 onClick = {
                                     editingIndex = index
                                     editedTitle = task.title
+                                    editedCategory = task.category
+                                    editedPriority = task.priority
                                 }
                             ) {
                                 Text("Modifica")
@@ -279,12 +331,28 @@ fun FaccioIoApp() {
                 onDismissRequest = { editingIndex = null },
                 title = { Text("Modifica attività") },
                 text = {
-                    OutlinedTextField(
-                        value = editedTitle,
-                        onValueChange = { editedTitle = it },
-                        label = { Text("Nome attività") },
-                        singleLine = true
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = editedTitle,
+                            onValueChange = { editedTitle = it },
+                            label = { Text("Nome attività") },
+                            singleLine = true
+                        )
+                        SelectionMenu(
+                            label = "Categoria",
+                            selectedValue = editedCategory,
+                            values = TASK_CATEGORIES,
+                            onValueSelected = { editedCategory = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        SelectionMenu(
+                            label = "Priorità",
+                            selectedValue = editedPriority,
+                            values = TASK_PRIORITIES,
+                            onValueSelected = { editedPriority = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 },
                 confirmButton = {
                     TextButton(
@@ -313,7 +381,11 @@ fun FaccioIoApp() {
                                     cancelReminder(context, task)
                                 }
 
-                                tasks[index] = task.copy(title = newTitle)
+                                tasks[index] = task.copy(
+                                    title = newTitle,
+                                    category = editedCategory,
+                                    priority = editedPriority
+                                )
                                 saveTasks(context, tasks)
                                 editingIndex = null
                                 editedTitle = ""
@@ -496,6 +568,47 @@ private fun formatReminderTime(time: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
         .format(Date(time))
 
+@Composable
+private fun SelectionMenu(
+    label: String,
+    selectedValue: String,
+    values: List<String>,
+    onValueSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("$label: $selectedValue")
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            values.forEach { value ->
+                DropdownMenuItem(
+                    text = { Text(value) },
+                    onClick = {
+                        onValueSelected(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun priorityColor(priority: String) = when (priority) {
+    "Alta" -> MaterialTheme.colorScheme.error
+    "Bassa" -> MaterialTheme.colorScheme.tertiary
+    else -> MaterialTheme.colorScheme.primary
+}
+
 private fun loadTasks(context: Context): List<TaskItem> {
     val preferences = context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
     val savedJson = preferences.getString(TASKS_KEY, null)
@@ -512,7 +625,9 @@ private fun loadTasks(context: Context): List<TaskItem> {
                     null
                 } else {
                     item.getLong("reminderTime")
-                }
+                },
+                category = item.optString("category", "Personale"),
+                priority = item.optString("priority", "Media")
             )
         }
     } catch (_: Exception) {
@@ -528,6 +643,8 @@ private fun saveTasks(context: Context, tasks: List<TaskItem>) {
                 put("title", task.title)
                 put("completed", task.completed)
                 put("reminderTime", task.reminderTime ?: JSONObject.NULL)
+                put("category", task.category)
+                put("priority", task.priority)
             }
         )
     }
@@ -539,7 +656,7 @@ private fun saveTasks(context: Context, tasks: List<TaskItem>) {
 }
 
 private fun defaultTasks(): List<TaskItem> = listOf(
-    TaskItem("Controllare gli impegni di oggi"),
-    TaskItem("Fare una pausa di 10 minuti"),
-    TaskItem("Preparare le cose per domani")
+    TaskItem("Controllare gli impegni di oggi", category = "Personale"),
+    TaskItem("Fare una pausa di 10 minuti", category = "Salute"),
+    TaskItem("Preparare le cose per domani", category = "Casa")
 )
