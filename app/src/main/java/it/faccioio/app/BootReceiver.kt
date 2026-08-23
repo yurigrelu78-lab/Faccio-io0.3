@@ -35,10 +35,10 @@ class BootReceiver : BroadcastReceiver() {
             .flatMap { task ->
                 buildList {
                     task.reminderTime?.takeIf { it > now }?.let {
-                        add(AlarmToRestore(task.title, it))
+                        add(AlarmToRestore(task.title, it, task.alarmEnabled))
                     }
                     task.departureTime?.takeIf { it > now }?.let {
-                        add(AlarmToRestore("È ora di partire: ${task.title}", it))
+                        add(AlarmToRestore("È ora di partire: ${task.title}", it, false))
                     }
                 }
             }
@@ -47,6 +47,7 @@ class BootReceiver : BroadcastReceiver() {
                     Intent(context, ReminderReceiver::class.java).apply {
                         putExtra("task_title", alarm.title)
                         putExtra("reminder_time", alarm.time)
+                        putExtra("is_alarm", alarm.isAlarm)
                     }
                 val pendingIntent = PendingIntent.getBroadcast(
                     context,
@@ -69,4 +70,4 @@ class BootReceiver : BroadcastReceiver() {
     }
 }
 
-private data class AlarmToRestore(val title: String, val time: Long)
+private data class AlarmToRestore(val title: String, val time: Long, val isAlarm: Boolean)
