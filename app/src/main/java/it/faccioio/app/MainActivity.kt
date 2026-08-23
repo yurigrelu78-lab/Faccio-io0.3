@@ -214,6 +214,8 @@ fun FaccioIoApp(
     var assistantDuration by rememberSaveable { mutableStateOf("30 minuti") }
     var assistantCustomDuration by rememberSaveable { mutableStateOf("30") }
     var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
+    var taskActivityTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var taskReminderTiming by rememberSaveable { mutableStateOf("All’ora esatta") }
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var taskAlertType by rememberSaveable { mutableStateOf("Promemoria") }
     var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
@@ -314,13 +316,15 @@ fun FaccioIoApp(
         recurrenceDays: Int = 1,
         durationMinutes: Int = 30,
         recurrenceWeekdays: List<Int> = emptyList(),
-        alarmEnabled: Boolean = false
+        alarmEnabled: Boolean = false,
+        appointmentTime: Long? = null
     ) {
         tasks.add(
             TaskItem(
                 title = pendingTask,
                 reminderTime = reminderTime,
                 alarmEnabled = alarmEnabled,
+                appointmentTime = appointmentTime,
                 category = pendingCategory,
                 priority = pendingPriority,
                 location = place?.address,
@@ -347,6 +351,8 @@ fun FaccioIoApp(
         pendingHasShoppingList = false
         showReminderChoice = false
         taskReminderMode = "Nessuno"
+        taskActivityTime = null
+        taskReminderTiming = "All’ora esatta"
         taskReminderTime = null
         taskAlertType = "Promemoria"
         taskRecurrence = "Mai"
@@ -2240,10 +2246,56 @@ fun FaccioIoApp(
                         taskRecurrence != "Mai"
                     ) {
                         OutlinedButton(
-                            onClick = { showReminderPicker(context) { taskReminderTime = it } },
+                            onClick = {
+                                showDateTimePicker(
+                                    context,
+                                    taskActivityTime ?: System.currentTimeMillis()
+                                ) { selectedTime ->
+                                    taskActivityTime = selectedTime
+                                    if (taskReminderTiming == "All’ora esatta") {
+                                        taskReminderTime = null
+                                    }
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(taskReminderTime?.let { "${taskAlertType}: ${formatReminderTime(it)}" } ?: "Scegli data e ora")
+                            Text(
+                                taskActivityTime?.let {
+                                    "Attività: ${formatReminderTime(it)}"
+                                } ?: "Scegli data e ora dell’attività"
+                            )
+                        }
+                        SelectionMenu(
+                            label = "Quando avvisare",
+                            selectedValue = taskReminderTiming,
+                            values = listOf("All’ora esatta", "Personalizzato"),
+                            onValueSelected = {
+                                taskReminderTiming = it
+                                if (it == "All’ora esatta") taskReminderTime = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (taskReminderTiming == "Personalizzato") {
+                            OutlinedButton(
+                                onClick = {
+                                    showReminderPicker(context) {
+                                        taskReminderTime = it
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    taskReminderTime?.let {
+                                        "Avviso: ${formatReminderTime(it)}"
+                                    } ?: "Scegli data e ora dell’avviso"
+                                )
+                            }
+                        } else {
+                            Text(
+                                "L’avviso verrà attivato all’inizio dell’attività.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FaccioMutedText
+                            )
                         }
                         SelectionMenu(
                             label = "Tipo di avviso",
@@ -2301,24 +2353,107 @@ fun FaccioIoApp(
                         if (taskRecurrence == "Personalizzata" && taskRecurrenceWeekdays.isEmpty()) {
                             Toast.makeText(context, "Seleziona almeno un giorno della settimana", Toast.LENGTH_LONG).show(); return@TextButton
                         }
-                        if (needsTime && (taskReminderTime == null || taskReminderTime!! <= System.currentTimeMillis())) {
-                            Toast.makeText(context, "Scegli un orario futuro", Toast.LENGTH_LONG).show(); return@TextButton
+                        val activityTime = taskActivityTime
+                        if (
+                            needsTime &&
+                            (activityTime == null || activityTime <= System.currentTimeMillis())
+                        ) {
+                            Toast.makeText(context, "Scegli un orario futuro per l’attività", Toast.LENGTH_LONG).show()
+                            return@TextButton
+                        }
+                        val effectiveReminderTime = when {
+                            !needsTime -> null
+                            taskReminderTiming == "All’ora esatta" -> activityTime
+                            else -> taskReminderTime
+                        }
+                        if (
+                            needsTime &&
+                            taskReminderTiming == "Personalizzato" &&
+                            (
+                                effectiveReminderTime == null ||
+                                    effectiveReminderTime <= System.currentTimeMillis() ||
+                                    effectiveReminderTime >= activityTime!!
+                                )
+                        ) {
+                            Toast.makeText(
+                                context,
+                                "L’avviso personalizzato deve essere futuro e precedente all’attività",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@TextButton
                         }
                         val place = taskResolvedPlace
                         if (needsPlace && place == null) {
-                            Toast.makeText(context, "Cerca e verifica prima il luogo", Toast.LENGTH_LONG).show(); return@TextButton
+                            Toast.makeText(context, "Cerca e verifica prima il luogo", Toast.LENGTH_LONG).show()
+                            return@TextButton
                         }
                         val alarmEnabled = needsTime && taskAlertType == "Sveglia"
-                        if (needsTime && !scheduleReminder(context, pendingTask, taskReminderTime!!, alarmEnabled)) return@TextButton
-                        if (needsPlace) {
-                            if (!ensureLocationPermissions(context)) return@TextButton
-                            val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
-                            registerArrivalGeofence(context, id, pendingTask, place!!.latitude, place.longitude) { ok ->
-                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays, durationMinutes, taskRecurrenceWeekdays.toList(), alarmEnabled)
-                                else Toast.makeText(context, "Attivazione del luogo non riuscita", Toast.LENGTH_LONG).show()
+                        val saveManualTask: () -> Unit = save@ {
+                            if (
+                                needsTime &&
+                                !scheduleReminder(
+                                    context,
+                                    pendingTask,
+                                    effectiveReminderTime!!,
+                                    alarmEnabled
+                                )
+                            ) {
+                                return@save
                             }
+                            if (needsPlace) {
+                                if (!ensureLocationPermissions(context)) return@save
+                                val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
+                                registerArrivalGeofence(
+                                    context,
+                                    id,
+                                    pendingTask,
+                                    place!!.latitude,
+                                    place.longitude
+                                ) { ok ->
+                                    if (ok) {
+                                        addPendingTask(
+                                            effectiveReminderTime,
+                                            place,
+                                            id,
+                                            taskRecurrence,
+                                            recurrenceDays,
+                                            durationMinutes,
+                                            taskRecurrenceWeekdays.toList(),
+                                            alarmEnabled,
+                                            activityTime
+                                        )
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Attivazione del luogo non riuscita",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            } else {
+                                addPendingTask(
+                                    reminderTime = effectiveReminderTime,
+                                    recurrence = taskRecurrence,
+                                    recurrenceDays = recurrenceDays,
+                                    durationMinutes = durationMinutes,
+                                    recurrenceWeekdays = taskRecurrenceWeekdays.toList(),
+                                    alarmEnabled = alarmEnabled,
+                                    appointmentTime = activityTime
+                                )
+                            }
+                        }
+                        val conflict = if (needsTime) {
+                            findScheduleConflict(
+                                tasks = tasks,
+                                proposedStart = activityTime,
+                                proposedDurationMinutes = durationMinutes
+                            )
+                        } else null
+                        if (conflict != null) {
+                            conflictToConfirm = conflict
+                            pendingConflictAction = saveManualTask
                         } else {
-                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays, durationMinutes = durationMinutes, recurrenceWeekdays = taskRecurrenceWeekdays.toList(), alarmEnabled = alarmEnabled)
+                            saveManualTask()
                         }
                     }
                 ) { Text("Salva attività") }
