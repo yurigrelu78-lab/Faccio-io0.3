@@ -12,6 +12,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val title = intent.getStringExtra("task_title") ?: "Promemoria"
         val reminderTime = intent.getLongExtra("reminder_time", 0L)
+        val isAlarm = intent.getBooleanExtra("is_alarm", false)
         val notificationId = (title.hashCode() xor reminderTime.hashCode())
 
         fun snoozeAction(action: String, label: String): NotificationCompat.Action {
@@ -28,6 +29,35 @@ class ReminderReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             return NotificationCompat.Action.Builder(0, label, pendingIntent).build()
+        }
+
+        if (isAlarm) {
+            val alarmIntent = Intent(context, AlarmActivity::class.java).apply {
+                putExtra("task_title", title)
+                putExtra("reminder_time", reminderTime)
+                putExtra("notification_id", notificationId)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            val fullScreenIntent = PendingIntent.getActivity(
+                context,
+                notificationId,
+                alarmIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val notification = NotificationCompat.Builder(context, AlarmActivity.ALARM_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("Sveglia Faccio io")
+                .setContentText(title)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setFullScreenIntent(fullScreenIntent, true)
+                .setContentIntent(fullScreenIntent)
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .build()
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
+            return
         }
 
         val openAppIntent = PendingIntent.getActivity(
