@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/sveglia-attivita
   workflow_dispatch:
 
 jobs:
