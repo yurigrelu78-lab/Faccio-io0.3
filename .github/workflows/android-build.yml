@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - feature/sveglia-attivita
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
