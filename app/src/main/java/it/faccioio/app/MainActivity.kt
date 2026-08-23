@@ -238,6 +238,8 @@ fun FaccioIoApp(
     var newShoppingItem by rememberSaveable { mutableStateOf("") }
     val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
     var showHelpGuide by rememberSaveable { mutableStateOf(false) }
+    var conflictToConfirm by remember { mutableStateOf<ScheduleConflict?>(null) }
+    var pendingConflictAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
     var customRoutineName by rememberSaveable { mutableStateOf("") }
     var customRoutineCategory by rememberSaveable { mutableStateOf("Personale") }
@@ -2014,6 +2016,40 @@ fun FaccioIoApp(
         )
     }
 
+    conflictToConfirm?.let { conflict ->
+        AlertDialog(
+            onDismissRequest = {
+                conflictToConfirm = null
+                pendingConflictAction = null
+            },
+            title = { Text("Orari sovrapposti") },
+            text = {
+                Text(
+                    "Questa attività si sovrappone a “${conflict.task.title}” " +
+                        "dalle ${formatHour(conflict.overlapStart)} alle ${formatHour(conflict.overlapEnd)}."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val action = pendingConflictAction
+                        conflictToConfirm = null
+                        pendingConflictAction = null
+                        action?.invoke()
+                    }
+                ) { Text("Salva comunque") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        conflictToConfirm = null
+                        pendingConflictAction = null
+                    }
+                ) { Text("Modifica orario") }
+            }
+        )
+    }
+
     if (showShoppingSuggestion) {
         AlertDialog(
             onDismissRequest = { showShoppingSuggestion = false },
@@ -2738,6 +2774,33 @@ private data class AgendaEntry(
     val task: TaskItem,
     val time: Long
 )
+
+private data class ScheduleConflict(
+    val task: TaskItem,
+    val overlapStart: Long,
+    val overlapEnd: Long
+)
+
+private fun findScheduleConflict(
+    tasks: List<TaskItem>,
+    proposedStart: Long?,
+    proposedDurationMinutes: Int,
+    excludeIndex: Int? = null
+): ScheduleConflict? {
+    if (proposedStart == null) return null
+    val proposedEnd = proposedStart + proposedDurationMinutes * 60_000L
+    return tasks.mapIndexedNotNull { index, task ->
+        if (index == excludeIndex || task.completed) return@mapIndexedNotNull null
+        val existingStart = task.appointmentTime ?: task.reminderTime
+            ?: return@mapIndexedNotNull null
+        val existingEnd = existingStart + task.durationMinutes * 60_000L
+        val overlapStart = maxOf(proposedStart, existingStart)
+        val overlapEnd = minOf(proposedEnd, existingEnd)
+        if (overlapStart < overlapEnd) {
+            ScheduleConflict(task, overlapStart, overlapEnd)
+        } else null
+    }.minByOrNull { it.overlapStart }
+}
 
 private val FaccioNavy: Color
     @Composable get() = MaterialTheme.colorScheme.onSurface
