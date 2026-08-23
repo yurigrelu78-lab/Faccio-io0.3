@@ -32,6 +32,27 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         if (isAlarm) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val soundUri = android.media.RingtoneManager.getDefaultUri(
+                    android.media.RingtoneManager.TYPE_ALARM
+                )
+                val attributes = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .build()
+                val channel = android.app.NotificationChannel(
+                    AlarmActivity.ALARM_CHANNEL_ID,
+                    "Sveglie Faccio io",
+                    android.app.NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Sveglie insistenti associate alle attività"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 800, 400, 800)
+                    setSound(soundUri, attributes)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                }
+                context.getSystemService(android.app.NotificationManager::class.java)
+                    .createNotificationChannel(channel)
+            }
             val alarmIntent = Intent(context, AlarmActivity::class.java).apply {
                 putExtra("task_title", title)
                 putExtra("reminder_time", reminderTime)
