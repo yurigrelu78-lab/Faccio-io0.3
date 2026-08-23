@@ -236,6 +236,8 @@ fun FaccioIoApp(
     var newShoppingItem by rememberSaveable { mutableStateOf("") }
     val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
     var showHelpGuide by rememberSaveable { mutableStateOf(false) }
+    var conflictToConfirm by remember { mutableStateOf<ScheduleConflict?>(null) }
+    var pendingConflictAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
     var customRoutineName by rememberSaveable { mutableStateOf("") }
     var customRoutineCategory by rememberSaveable { mutableStateOf("Personale") }
@@ -693,6 +695,19 @@ fun FaccioIoApp(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = FaccioMutedText
                                 )
+                                findScheduleConflict(
+                                    tasks = tasks,
+                                    proposedStart = task.appointmentTime ?: task.reminderTime,
+                                    proposedDurationMinutes = task.durationMinutes,
+                                    excludeIndex = index
+                                )?.let { conflict ->
+                                    Text(
+                                        "Sovrapposizione con “${conflict.task.title}” · ${formatHour(conflict.overlapStart)}–${formatHour(conflict.overlapEnd)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                                 task.reminderTime?.let { selectedTime ->
                                     Text(
                                         text = "Promemoria: ${formatReminderTime(selectedTime)}",
@@ -1957,46 +1972,69 @@ fun FaccioIoApp(
                             Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
                             return@TextButton
                         }
-                        if (departure != null) {
-                            if (!scheduleReminder(context, "È ora di partire: ${appointment.title}", departure.departureTime)) return@TextButton
+                        val saveAppointment = {
+                            var scheduled = true
+                            if (departure != null) {
+                                scheduled = scheduleReminder(
+                                    context,
+                                    "È ora di partire: ${appointment.title}",
+                                    departure.departureTime
+                                )
+                            }
+                            if (
+                                scheduled &&
+                                reminderTime != null
+                            ) {
+                                scheduled = scheduleReminder(
+                                    context,
+                                    appointment.title,
+                                    reminderTime
+                                )
+                            }
+                            if (scheduled) {
+                                tasks.add(
+                                    TaskItem(
+                                        title = appointment.title,
+                                        reminderTime = reminderTime,
+                                        category = assistantCategory,
+                                        priority = assistantPriority,
+                                        appointmentTime = appointment.time,
+                                        location = resolvedPlace?.address ?: appointment.location,
+                                        latitude = resolvedPlace?.latitude,
+                                        longitude = resolvedPlace?.longitude,
+                                        departureTime = departure?.departureTime,
+                                        departureTravelMinutes = departure?.travelMinutes,
+                                        departureMarginMinutes = departure?.marginMinutes,
+                                        departureTransport = departureTransport,
+                                        departureSafety = departureSafety,
+                                        durationMinutes = durationMinutes
+                                    )
+                                )
+                                saveTasks(context, tasks)
+                                assistantText = ""
+                                assistantResult = null
+                                Toast.makeText(
+                                    context,
+                                    if (reminderTime == null) {
+                                        "Appuntamento aggiunto"
+                                    } else {
+                                        "Appuntamento e promemoria aggiunti"
+                                    },
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
-                        if (
-                            reminderTime != null &&
-                            !scheduleReminder(context, appointment.title, reminderTime)
-                        ) {
-                            return@TextButton
-                        }
-
-                        tasks.add(
-                            TaskItem(
-                                title = appointment.title,
-                                reminderTime = reminderTime,
-                                category = assistantCategory,
-                                priority = assistantPriority,
-                                appointmentTime = appointment.time,
-                                location = resolvedPlace?.address ?: appointment.location,
-                                latitude = resolvedPlace?.latitude,
-                                longitude = resolvedPlace?.longitude
-                                ,departureTime = departure?.departureTime,
-                                departureTravelMinutes = departure?.travelMinutes,
-                                departureMarginMinutes = departure?.marginMinutes,
-                                departureTransport = departureTransport,
-                                departureSafety = departureSafety,
-                                durationMinutes = durationMinutes
-                            )
+                        val conflict = findScheduleConflict(
+                            tasks = tasks,
+                            proposedStart = appointment.time,
+                            proposedDurationMinutes = durationMinutes
                         )
-                        saveTasks(context, tasks)
-                        assistantText = ""
-                        assistantResult = null
-                        Toast.makeText(
-                            context,
-                            if (reminderTime == null) {
-                                "Appuntamento aggiunto"
-                            } else {
-                                "Appuntamento e promemoria aggiunti"
-                            },
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        if (conflict != null) {
+                            conflictToConfirm = conflict
+                            pendingConflictAction = saveAppointment
+                        } else {
+                            saveAppointment()
+                        }
                     }
                 ) { Text("Salva appuntamento") }
             },
@@ -2004,6 +2042,40 @@ fun FaccioIoApp(
                 TextButton(onClick = { assistantResult = null }) {
                     Text("Annulla")
                 }
+            }
+        )
+    }
+
+    conflictToConfirm?.let { conflict ->
+        AlertDialog(
+            onDismissRequest = {
+                conflictToConfirm = null
+                pendingConflictAction = null
+            },
+            title = { Text("Orari sovrapposti") },
+            text = {
+                Text(
+                    "Questa attività si sovrappone a “${conflict.task.title}” " +
+                        "dalle ${formatHour(conflict.overlapStart)} alle ${formatHour(conflict.overlapEnd)}."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val action = pendingConflictAction
+                        conflictToConfirm = null
+                        pendingConflictAction = null
+                        action?.invoke()
+                    }
+                ) { Text("Salva comunque") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        conflictToConfirm = null
+                        pendingConflictAction = null
+                    }
+                ) { Text("Modifica orario") }
             }
         )
     }
@@ -2603,6 +2675,33 @@ private data class AgendaEntry(
     val task: TaskItem,
     val time: Long
 )
+
+private data class ScheduleConflict(
+    val task: TaskItem,
+    val overlapStart: Long,
+    val overlapEnd: Long
+)
+
+private fun findScheduleConflict(
+    tasks: List<TaskItem>,
+    proposedStart: Long?,
+    proposedDurationMinutes: Int,
+    excludeIndex: Int? = null
+): ScheduleConflict? {
+    if (proposedStart == null) return null
+    val proposedEnd = proposedStart + proposedDurationMinutes * 60_000L
+    return tasks.mapIndexedNotNull { index, task ->
+        if (index == excludeIndex || task.completed) return@mapIndexedNotNull null
+        val existingStart = task.appointmentTime ?: task.reminderTime
+            ?: return@mapIndexedNotNull null
+        val existingEnd = existingStart + task.durationMinutes * 60_000L
+        val overlapStart = maxOf(proposedStart, existingStart)
+        val overlapEnd = minOf(proposedEnd, existingEnd)
+        if (overlapStart < overlapEnd) {
+            ScheduleConflict(task, overlapStart, overlapEnd)
+        } else null
+    }.minByOrNull { it.overlapStart }
+}
 
 private val FaccioNavy: Color
     @Composable get() = MaterialTheme.colorScheme.onSurface
