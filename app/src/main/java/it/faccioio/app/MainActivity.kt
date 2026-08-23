@@ -2123,7 +2123,12 @@ fun FaccioIoApp(
 
     if (showShoppingSuggestion) {
         AlertDialog(
-            onDismissRequest = { showShoppingSuggestion = false },
+            onDismissRequest = {
+                pendingHasShoppingList = false
+                pendingListSuggestionKind = null
+                showShoppingSuggestion = false
+                showReminderChoice = true
+            },
             shape = RoundedCornerShape(20.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             title = {
