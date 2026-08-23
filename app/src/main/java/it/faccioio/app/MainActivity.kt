@@ -162,6 +162,7 @@ private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
 private val TASK_RECURRENCES = listOf("Mai", "Ogni giorno", "Ogni settimana", "Ogni mese", "Personalizzata")
 private val APPOINTMENT_REMINDER_OPTIONS = listOf(
+    "All’ora esatta",
     "24 ore prima",
     "48 ore prima",
     "7 giorni prima",
@@ -204,7 +205,7 @@ fun FaccioIoApp(
     var resolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
     var placeLookupMessage by remember { mutableStateOf("") }
     var appointmentReminderOption by rememberSaveable {
-        mutableStateOf("24 ore prima")
+        mutableStateOf("All’ora esatta")
     }
     var customAppointmentReminderTime by rememberSaveable {
         mutableStateOf<Long?>(null)
@@ -1783,7 +1784,7 @@ fun FaccioIoApp(
 
     assistantResult?.let { appointment ->
         LaunchedEffect(appointment.time, appointment.title) {
-            appointmentReminderOption = "24 ore prima"
+            appointmentReminderOption = "All’ora esatta"
             customAppointmentReminderTime = null
             assistantCategory = suggestAppointmentCategory(appointment.title)
             assistantPriority = suggestAppointmentPriority(appointment.title)
@@ -1997,11 +1998,11 @@ fun FaccioIoApp(
                         if (
                             reminderTime != null &&
                             (reminderTime <= System.currentTimeMillis() ||
-                                reminderTime >= appointment.time)
+                                reminderTime > appointment.time)
                         ) {
                             Toast.makeText(
                                 context,
-                                "Il promemoria deve essere futuro e precedente all’appuntamento",
+                                "Il promemoria deve essere futuro e non successivo all’appuntamento",
                                 Toast.LENGTH_LONG
                             ).show()
                             return@TextButton
@@ -3689,6 +3690,8 @@ private fun appointmentReminderTime(
 ): Long? {
     if (option == "Nessun promemoria") return null
     if (option == "Personalizzato") return customTime
+
+    if (option == "All’ora esatta") return appointmentTime
 
     return Calendar.getInstance().apply {
         timeInMillis = appointmentTime
