@@ -2570,43 +2570,63 @@ fun FaccioIoApp(
                                     return@TextButton
                                 }
 
-                                val mustReschedule =
-                                    newReminderTime != null &&
-                                        newReminderTime > now &&
-                                        (reminderChanged || titleChanged)
-                                if (mustReschedule) {
-                                    if (!scheduleReminder(context, newTitle, newReminderTime, editedAlarmEnabled)) {
-                                        return@TextButton
+                                val saveEditedTask: () -> Unit = save@ {
+                                    val mustReschedule =
+                                        newReminderTime != null &&
+                                            newReminderTime > now &&
+                                            (reminderChanged || titleChanged)
+                                    if (
+                                        mustReschedule &&
+                                        !scheduleReminder(
+                                            context,
+                                            newTitle,
+                                            newReminderTime!!,
+                                            editedAlarmEnabled
+                                        )
+                                    ) {
+                                        return@save
                                     }
-                                }
-                                if (
-                                    task.reminderTime != null &&
-                                    (reminderChanged || titleChanged) &&
-                                    task.reminderTime > now
-                                ) {
-                                    cancelReminder(context, task)
-                                }
+                                    if (
+                                        task.reminderTime != null &&
+                                        (reminderChanged || titleChanged) &&
+                                        task.reminderTime > now
+                                    ) {
+                                        cancelReminder(context, task)
+                                    }
 
-                                tasks[index] = task.copy(
-                                    title = newTitle,
-                                    category = editedCategory,
-                                    priority = editedPriority,
-                                    appointmentTime = newAppointmentTime,
-                                    reminderTime = newReminderTime,
-                                    alarmEnabled = editedAlarmEnabled,
-                                    recurrence = editedRecurrence,
-                                    recurrenceIntervalDays = recurrenceDays,
-                                    recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
-                                    durationMinutes = durationMinutes
+                                    tasks[index] = task.copy(
+                                        title = newTitle,
+                                        category = editedCategory,
+                                        priority = editedPriority,
+                                        appointmentTime = newAppointmentTime,
+                                        reminderTime = newReminderTime,
+                                        alarmEnabled = editedAlarmEnabled,
+                                        recurrence = editedRecurrence,
+                                        recurrenceIntervalDays = recurrenceDays,
+                                        recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
+                                        durationMinutes = durationMinutes
+                                    )
+                                    saveTasks(context, tasks)
+                                    editingIndex = null
+                                    editedTitle = ""
+                                    Toast.makeText(
+                                        context,
+                                        "Attività aggiornata",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                val conflict = findScheduleConflict(
+                                    tasks = tasks,
+                                    proposedStart = newAppointmentTime ?: newReminderTime,
+                                    proposedDurationMinutes = durationMinutes,
+                                    excludeIndex = index
                                 )
-                                saveTasks(context, tasks)
-                                editingIndex = null
-                                editedTitle = ""
-                                Toast.makeText(
-                                    context,
-                                    "Attività aggiornata",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                if (conflict != null) {
+                                    conflictToConfirm = conflict
+                                    pendingConflictAction = saveEditedTask
+                                } else {
+                                    saveEditedTask()
+                                }
                             }
                         }
                     ) {
