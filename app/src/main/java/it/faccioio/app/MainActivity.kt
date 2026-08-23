@@ -1770,15 +1770,6 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             onValueSelected = { assistantCategory = it },
                             modifier = Modifier.weight(1f)
                         )
-                        if (task.reminderTime != null) {
-                            SelectionMenu(
-                                label = "Tipo di avviso",
-                                selectedValue = if (editedAlarmEnabled) "Sveglia" else "Promemoria",
-                                values = listOf("Promemoria", "Sveglia"),
-                                onValueSelected = { editedAlarmEnabled = it == "Sveglia" },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
                         SelectionMenu(
                             label = "Priorità",
                             selectedValue = assistantPriority,
@@ -2339,6 +2330,15 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
+                        }
+                        if (task.reminderTime != null) {
+                            SelectionMenu(
+                                label = "Tipo di avviso",
+                                selectedValue = if (editedAlarmEnabled) "Sveglia" else "Promemoria",
+                                values = listOf("Promemoria", "Sveglia"),
+                                onValueSelected = { editedAlarmEnabled = it == "Sveglia" },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                         SelectionMenu(
                             label = "Priorità",
