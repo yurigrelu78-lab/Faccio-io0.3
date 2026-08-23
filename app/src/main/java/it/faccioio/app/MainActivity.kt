@@ -701,6 +701,19 @@ fun FaccioIoApp(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = FaccioMutedText
                                 )
+                                findScheduleConflict(
+                                    tasks = tasks,
+                                    proposedStart = task.appointmentTime ?: task.reminderTime,
+                                    proposedDurationMinutes = task.durationMinutes,
+                                    excludeIndex = index
+                                )?.let { conflict ->
+                                    Text(
+                                        "Sovrapposizione con “${conflict.task.title}” · ${formatHour(conflict.overlapStart)}–${formatHour(conflict.overlapEnd)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                                 task.reminderTime?.let { selectedTime ->
                                     Text(
                                         text = "Promemoria: ${formatReminderTime(selectedTime)}",
@@ -1965,46 +1978,59 @@ fun FaccioIoApp(
                             Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
                             return@TextButton
                         }
-                        if (departure != null) {
-                            if (!scheduleReminder(context, "È ora di partire: ${appointment.title}", departure.departureTime)) return@TextButton
+                        val saveAppointment = {
+                            var scheduled = true
+                            if (departure != null) {
+                                scheduled = scheduleReminder(
+                                    context,
+                                    "È ora di partire: ${appointment.title}",
+                                    departure.departureTime
+                                )
+                            }
+                            if (scheduled && reminderTime != null) {
+                                scheduled = scheduleReminder(context, appointment.title, reminderTime)
+                            }
+                            if (scheduled) {
+                                tasks.add(
+                                    TaskItem(
+                                        title = appointment.title,
+                                        reminderTime = reminderTime,
+                                        category = assistantCategory,
+                                        priority = assistantPriority,
+                                        appointmentTime = appointment.time,
+                                        location = resolvedPlace?.address ?: appointment.location,
+                                        latitude = resolvedPlace?.latitude,
+                                        longitude = resolvedPlace?.longitude,
+                                        departureTime = departure?.departureTime,
+                                        departureTravelMinutes = departure?.travelMinutes,
+                                        departureMarginMinutes = departure?.marginMinutes,
+                                        departureTransport = departureTransport,
+                                        departureSafety = departureSafety,
+                                        durationMinutes = durationMinutes
+                                    )
+                                )
+                                saveTasks(context, tasks)
+                                assistantText = ""
+                                assistantResult = null
+                                Toast.makeText(
+                                    context,
+                                    if (reminderTime == null) "Appuntamento aggiunto"
+                                    else "Appuntamento e promemoria aggiunti",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
-                        if (
-                            reminderTime != null &&
-                            !scheduleReminder(context, appointment.title, reminderTime)
-                        ) {
-                            return@TextButton
-                        }
-
-                        tasks.add(
-                            TaskItem(
-                                title = appointment.title,
-                                reminderTime = reminderTime,
-                                category = assistantCategory,
-                                priority = assistantPriority,
-                                appointmentTime = appointment.time,
-                                location = resolvedPlace?.address ?: appointment.location,
-                                latitude = resolvedPlace?.latitude,
-                                longitude = resolvedPlace?.longitude
-                                ,departureTime = departure?.departureTime,
-                                departureTravelMinutes = departure?.travelMinutes,
-                                departureMarginMinutes = departure?.marginMinutes,
-                                departureTransport = departureTransport,
-                                departureSafety = departureSafety,
-                                durationMinutes = durationMinutes
-                            )
+                        val conflict = findScheduleConflict(
+                            tasks = tasks,
+                            proposedStart = appointment.time,
+                            proposedDurationMinutes = durationMinutes
                         )
-                        saveTasks(context, tasks)
-                        assistantText = ""
-                        assistantResult = null
-                        Toast.makeText(
-                            context,
-                            if (reminderTime == null) {
-                                "Appuntamento aggiunto"
-                            } else {
-                                "Appuntamento e promemoria aggiunti"
-                            },
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        if (conflict != null) {
+                            conflictToConfirm = conflict
+                            pendingConflictAction = saveAppointment
+                        } else {
+                            saveAppointment()
+                        }
                     }
                 ) { Text("Salva appuntamento") }
             },
@@ -2669,43 +2695,55 @@ fun FaccioIoApp(
                                     return@TextButton
                                 }
 
-                                val mustReschedule =
-                                    newReminderTime != null &&
-                                        newReminderTime > now &&
-                                        (reminderChanged || titleChanged)
-                                if (mustReschedule) {
-                                    if (!scheduleReminder(context, newTitle, newReminderTime, editedAlarmEnabled)) {
-                                        return@TextButton
-                                    }
-                                }
-                                if (
-                                    task.reminderTime != null &&
-                                    (reminderChanged || titleChanged) &&
-                                    task.reminderTime > now
-                                ) {
-                                    cancelReminder(context, task)
-                                }
+                                val saveEditedTask: () -> Unit = save@ {
+                                    val mustReschedule =
+                                        newReminderTime != null &&
+                                            newReminderTime > now &&
+                                            (reminderChanged || titleChanged)
+                                    if (
+                                        mustReschedule &&
+                                        !scheduleReminder(
+                                            context,
+                                            newTitle,
+                                            newReminderTime!!,
+                                            editedAlarmEnabled
+                                        )
+                                    ) return@save
+                                    if (
+                                        task.reminderTime != null &&
+                                        (reminderChanged || titleChanged) &&
+                                        task.reminderTime > now
+                                    ) cancelReminder(context, task)
 
-                                tasks[index] = task.copy(
-                                    title = newTitle,
-                                    category = editedCategory,
-                                    priority = editedPriority,
-                                    appointmentTime = newAppointmentTime,
-                                    reminderTime = newReminderTime,
-                                    alarmEnabled = editedAlarmEnabled,
-                                    recurrence = editedRecurrence,
-                                    recurrenceIntervalDays = recurrenceDays,
-                                    recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
-                                    durationMinutes = durationMinutes
+                                    tasks[index] = task.copy(
+                                        title = newTitle,
+                                        category = editedCategory,
+                                        priority = editedPriority,
+                                        appointmentTime = newAppointmentTime,
+                                        reminderTime = newReminderTime,
+                                        alarmEnabled = editedAlarmEnabled,
+                                        recurrence = editedRecurrence,
+                                        recurrenceIntervalDays = recurrenceDays,
+                                        recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
+                                        durationMinutes = durationMinutes
+                                    )
+                                    saveTasks(context, tasks)
+                                    editingIndex = null
+                                    editedTitle = ""
+                                    Toast.makeText(context, "Attività aggiornata", Toast.LENGTH_SHORT).show()
+                                }
+                                val conflict = findScheduleConflict(
+                                    tasks = tasks,
+                                    proposedStart = newAppointmentTime ?: newReminderTime,
+                                    proposedDurationMinutes = durationMinutes,
+                                    excludeIndex = index
                                 )
-                                saveTasks(context, tasks)
-                                editingIndex = null
-                                editedTitle = ""
-                                Toast.makeText(
-                                    context,
-                                    "Attività aggiornata",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                if (conflict != null) {
+                                    conflictToConfirm = conflict
+                                    pendingConflictAction = saveEditedTask
+                                } else {
+                                    saveEditedTask()
+                                }
                             }
                         }
                     ) {
