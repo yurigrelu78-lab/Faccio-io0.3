@@ -6,6 +6,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
 import java.text.SimpleDateFormat
@@ -55,6 +57,7 @@ class AgendaWidgetProvider : AppWidgetProvider() {
                 .minByOrNull { it.second }
 
             val views = RemoteViews(context.packageName, R.layout.faccio_io_widget)
+            applyWidgetTheme(context, views)
             views.setTextViewText(
                 R.id.widget_date,
                 SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
@@ -96,6 +99,51 @@ class AgendaWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_root, openApp)
             manager.updateAppWidget(widgetId, views)
+        }
+
+        private fun applyWidgetTheme(context: Context, views: RemoteViews) {
+            val isDark = when (loadThemeMode(context)) {
+                THEME_DARK -> true
+                THEME_LIGHT -> false
+                else -> context.resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            }
+
+            val primaryText = Color.parseColor(if (isDark) "#E2E8EE" else "#173A5E")
+            val mutedText = Color.parseColor(if (isDark) "#B8C3CC" else "#5E6875")
+            val accentText = Color.parseColor(if (isDark) "#66CCCC" else "#188C8C")
+            val countText = Color.parseColor(if (isDark) "#B5EEEE" else "#188C8C")
+            val departureText = Color.parseColor(if (isDark) "#FFE0A8" else "#173A5E")
+
+            views.setInt(
+                R.id.widget_root,
+                "setBackgroundResource",
+                if (isDark) R.drawable.widget_background_dark else R.drawable.widget_background
+            )
+            views.setInt(
+                R.id.widget_count,
+                "setBackgroundResource",
+                if (isDark) R.drawable.widget_badge_dark else R.drawable.widget_badge
+            )
+            views.setInt(
+                R.id.widget_departure,
+                "setBackgroundResource",
+                if (isDark) R.drawable.widget_departure_badge_dark
+                else R.drawable.widget_departure_badge
+            )
+            views.setInt(
+                R.id.widget_accent,
+                "setBackgroundResource",
+                if (isDark) R.drawable.widget_accent_dark else R.drawable.widget_accent
+            )
+
+            views.setTextColor(R.id.widget_app_title, primaryText)
+            views.setTextColor(R.id.widget_date, mutedText)
+            views.setTextColor(R.id.widget_count, countText)
+            views.setTextColor(R.id.widget_section_label, accentText)
+            views.setTextColor(R.id.widget_title, primaryText)
+            views.setTextColor(R.id.widget_time, mutedText)
+            views.setTextColor(R.id.widget_departure, departureText)
         }
 
         private fun sameWidgetDay(first: Long, second: Long): Boolean {
