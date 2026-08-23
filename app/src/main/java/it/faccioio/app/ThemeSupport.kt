@@ -66,6 +66,7 @@ internal fun saveThemeMode(context: Context, mode: String) {
         .edit()
         .putString(THEME_MODE_KEY, mode)
         .apply()
+    AgendaWidgetProvider.updateAll(context)
 }
 
 @Composable

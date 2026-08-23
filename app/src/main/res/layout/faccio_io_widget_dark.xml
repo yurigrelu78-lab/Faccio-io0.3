@@ -3,7 +3,7 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
+    android:background="@drawable/widget_background_dark"
     android:orientation="vertical"
     android:padding="14dp">
 
@@ -24,7 +24,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Faccio io"
-                android:textColor="#173A5E"
+                android:textColor="#E2E8EE"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -33,7 +33,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="1dp"
-                android:textColor="#5E6875"
+                android:textColor="#B8C3CC"
                 android:textSize="11sp" />
         </LinearLayout>
 
@@ -41,12 +41,12 @@
             android:id="@+id/widget_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/widget_badge"
+            android:background="@drawable/widget_badge_dark"
             android:paddingLeft="9dp"
             android:paddingTop="4dp"
             android:paddingRight="9dp"
             android:paddingBottom="4dp"
-            android:textColor="#188C8C"
+            android:textColor="#66CCCC"
             android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -56,7 +56,7 @@
         android:layout_width="34dp"
         android:layout_height="3dp"
         android:layout_marginTop="9dp"
-        android:background="@drawable/widget_accent"
+        android:background="@drawable/widget_accent_dark"
         android:text="" />
 
     <TextView
@@ -65,7 +65,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="9dp"
         android:text="PROSSIMO"
-        android:textColor="#188C8C"
+        android:textColor="#66CCCC"
         android:textSize="10sp"
         android:textStyle="bold" />
 
@@ -76,7 +76,7 @@
         android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:maxLines="2"
-        android:textColor="#173A5E"
+        android:textColor="#E2E8EE"
         android:textSize="17sp"
         android:textStyle="bold" />
 
@@ -85,7 +85,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="3dp"
-        android:textColor="#5E6875"
+        android:textColor="#B8C3CC"
         android:textSize="12sp" />
 
     <TextView
@@ -93,12 +93,12 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="7dp"
-        android:background="@drawable/widget_departure_badge"
+        android:background="@drawable/widget_departure_badge_dark"
         android:paddingLeft="9dp"
         android:paddingTop="4dp"
         android:paddingRight="9dp"
         android:paddingBottom="4dp"
-        android:textColor="#173A5E"
+        android:textColor="#FFE0A8"
         android:textSize="11sp"
         android:textStyle="bold" />
 </LinearLayout>

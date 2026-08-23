@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.view.View
 import android.widget.RemoteViews
 import java.text.SimpleDateFormat
@@ -14,6 +15,13 @@ import java.util.Date
 import java.util.Locale
 
 class AgendaWidgetProvider : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == Intent.ACTION_CONFIGURATION_CHANGED) {
+            updateAll(context)
+        }
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -54,7 +62,12 @@ class AgendaWidgetProvider : AppWidgetProvider() {
                 }
                 .minByOrNull { it.second }
 
-            val views = RemoteViews(context.packageName, R.layout.faccio_io_widget)
+            val layoutId = if (widgetUsesDarkTheme(context)) {
+                R.layout.faccio_io_widget_dark
+            } else {
+                R.layout.faccio_io_widget
+            }
+            val views = RemoteViews(context.packageName, layoutId)
             views.setTextViewText(
                 R.id.widget_date,
                 SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
@@ -97,6 +110,14 @@ class AgendaWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_root, openApp)
             manager.updateAppWidget(widgetId, views)
         }
+
+        private fun widgetUsesDarkTheme(context: Context): Boolean =
+            when (loadThemeMode(context)) {
+                THEME_DARK -> true
+                THEME_LIGHT -> false
+                else -> context.resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            }
 
         private fun sameWidgetDay(first: Long, second: Long): Boolean {
             val a = Calendar.getInstance().apply { timeInMillis = first }
