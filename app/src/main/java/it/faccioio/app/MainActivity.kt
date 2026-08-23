@@ -233,7 +233,9 @@ fun FaccioIoApp(
     var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
     var showShoppingSuggestion by rememberSaveable { mutableStateOf(false) }
+    var pendingListSuggestionKind by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingHasShoppingList by rememberSaveable { mutableStateOf(false) }
+    var assistantListEnabled by rememberSaveable { mutableStateOf(false) }
     var shoppingListIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var newShoppingItem by rememberSaveable { mutableStateOf("") }
     val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
@@ -577,7 +579,8 @@ fun FaccioIoApp(
                     taskLocationQuery = ""
                     taskResolvedPlace = null
                     pendingHasShoppingList = false
-                    if (isShoppingTask(text)) {
+                    pendingListSuggestionKind = suggestedListKind(text)
+                    if (pendingListSuggestionKind != null) {
                         showShoppingSuggestion = true
                     } else {
                         showReminderChoice = true
@@ -1342,6 +1345,7 @@ fun FaccioIoApp(
                                 Toast.LENGTH_LONG
                             ).show()
                         } else {
+                            assistantListEnabled = suggestedListKind(parsed.title) != null
                             assistantResult = parsed
                             showAssistant = false
                         }
@@ -1821,6 +1825,43 @@ fun FaccioIoApp(
                         placeLookupMessage,
                         style = MaterialTheme.typography.bodySmall
                     )
+                    suggestedListKind(appointment.title)?.let { kind ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = assistantListEnabled,
+                                    onCheckedChange = { assistantListEnabled = it }
+                                )
+                                Column {
+                                    Text(
+                                        if (kind == "viaggio") {
+                                            "Crea una lista per il viaggio"
+                                        } else {
+                                            "Crea una lista per la spesa"
+                                        },
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        if (kind == "viaggio") {
+                                            "Potrai aggiungere e spuntare tutto ciò che devi preparare."
+                                        } else {
+                                            "Potrai aggiungere e spuntare gli articoli da acquistare."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioMutedText
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (appointment.location != null) {
                         OutlinedButton(
                             onClick = {
@@ -2006,10 +2047,14 @@ fun FaccioIoApp(
                                         departureMarginMinutes = departure?.marginMinutes,
                                         departureTransport = departureTransport,
                                         departureSafety = departureSafety,
-                                        durationMinutes = durationMinutes
+                                        durationMinutes = durationMinutes,
+                                        shoppingListEnabled = assistantListEnabled
                                     )
                                 )
                                 saveTasks(context, tasks)
+                                if (assistantListEnabled) {
+                                    openShoppingList(tasks.lastIndex)
+                                }
                                 assistantText = ""
                                 assistantResult = null
                                 Toast.makeText(
@@ -2090,7 +2135,11 @@ fun FaccioIoApp(
             },
             text = {
                 Text(
-                    "Sembra un’attività legata alla spesa. Puoi creare una lista specifica e spuntare gli articoli mentre acquisti.",
+                    if (pendingListSuggestionKind == "viaggio") {
+                        "Sembra un’attività legata a un viaggio. Puoi creare una lista di cose da preparare e spuntarle man mano."
+                    } else {
+                        "Sembra un’attività legata alla spesa. Puoi creare una lista specifica e spuntare gli articoli mentre acquisti."
+                    },
                     color = FaccioMutedText
                 )
             },
@@ -2098,6 +2147,7 @@ fun FaccioIoApp(
                 Button(
                     onClick = {
                         pendingHasShoppingList = true
+                        pendingListSuggestionKind = null
                         showShoppingSuggestion = false
                         showReminderChoice = true
                     },
@@ -2109,6 +2159,7 @@ fun FaccioIoApp(
                 TextButton(
                     onClick = {
                         pendingHasShoppingList = false
+                        pendingListSuggestionKind = null
                         showShoppingSuggestion = false
                         showReminderChoice = true
                     },
@@ -2851,16 +2902,34 @@ private val FaccioCard: Color
 private val FaccioMutedText: Color
     @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 
-private fun isShoppingTask(title: String): Boolean {
+private fun suggestedListKind(title: String): String? {
     val text = title.lowercase(Locale.ITALIAN)
-    return listOf(
+    val shoppingKeywords = listOf(
         "spesa",
         "supermercato",
         "comprare",
         "acquisti",
         "alimentari"
-    ).any { keyword -> keyword in text }
+    )
+    if (shoppingKeywords.any { keyword -> keyword in text }) return "spesa"
+
+    val travelKeywords = listOf(
+        "viaggio",
+        "weekend",
+        "week-end",
+        "gita",
+        "vacanza",
+        "vacanze",
+        "partenza",
+        "trasferta",
+        "campeggio",
+        "escursione"
+    )
+    return if (travelKeywords.any { keyword -> keyword in text }) "viaggio" else null
 }
+
+private fun isShoppingTask(title: String): Boolean =
+    suggestedListKind(title) == "spesa"
 
 @Composable
 private fun taskCategoryColor(category: String): Color = when (category) {
