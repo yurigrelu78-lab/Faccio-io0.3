@@ -56,8 +56,11 @@ class AlarmActivity : ComponentActivity() {
         startAlarm()
 
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            FaccioIoTheme(loadThemeMode(this@AlarmActivity)) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     AlarmScreen(
                         title = title,
                         onStop = { stopAndClose() },

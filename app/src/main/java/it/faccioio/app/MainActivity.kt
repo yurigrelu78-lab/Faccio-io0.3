@@ -59,8 +59,12 @@ class MainActivity : ComponentActivity() {
         createReminderChannel()
 
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            var themeMode by remember { mutableStateOf(loadThemeMode(this@MainActivity)) }
+            FaccioIoTheme(themeMode) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     var showSetup by remember {
                         mutableStateOf(!isInitialSetupComplete(this@MainActivity))
                     }
@@ -76,7 +80,14 @@ class MainActivity : ComponentActivity() {
                             } else null
                         )
                     } else {
-                        FaccioIoApp(onOpenSetup = { showSetup = true })
+                        FaccioIoApp(
+                            onOpenSetup = { showSetup = true },
+                            themeMode = themeMode,
+                            onThemeModeChange = { selectedMode ->
+                                saveThemeMode(this@MainActivity, selectedMode)
+                                themeMode = selectedMode
+                            }
+                        )
                     }
                 }
             }
@@ -159,7 +170,11 @@ private val APPOINTMENT_REMINDER_OPTIONS = listOf(
 )
 
 @Composable
-fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
+fun FaccioIoApp(
+    onOpenSetup: () -> Unit = {},
+    themeMode: String = THEME_SYSTEM,
+    onThemeModeChange: (String) -> Unit = {}
+) {
     val context = LocalContext.current
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
@@ -648,7 +663,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Row(
@@ -866,7 +881,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
@@ -904,7 +919,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
@@ -962,7 +977,48 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
+                                .background(FaccioTeal)
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Aspetto",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Scegli il tema dell’app. Sistema segue automaticamente il telefono.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                            SelectionMenu(
+                                label = "Tema",
+                                selectedValue = themeMode,
+                                values = THEME_OPTIONS,
+                                onValueSelected = onThemeModeChange,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
@@ -1000,7 +1056,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
@@ -1081,7 +1137,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         AlertDialog(
             onDismissRequest = { showHelpGuide = false },
             shape = RoundedCornerShape(20.dp),
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
             titleContentColor = FaccioNavy,
             textContentColor = FaccioMutedText,
@@ -1167,7 +1223,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         AlertDialog(
             onDismissRequest = { showAssistant = false },
             shape = RoundedCornerShape(20.dp),
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
             titleContentColor = FaccioNavy,
             textContentColor = FaccioMutedText,
@@ -1320,7 +1376,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         AlertDialog(
             onDismissRequest = { showRoutineTemplates = false },
             shape = RoundedCornerShape(20.dp),
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
             titleContentColor = FaccioNavy,
             textContentColor = FaccioMutedText,
@@ -1506,7 +1562,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         AlertDialog(
             onDismissRequest = { showCustomRoutineEditor = false },
             shape = RoundedCornerShape(20.dp),
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
             titleContentColor = FaccioNavy,
             textContentColor = FaccioMutedText,
@@ -1956,7 +2012,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         AlertDialog(
             onDismissRequest = { showShoppingSuggestion = false },
             shape = RoundedCornerShape(20.dp),
-            containerColor = Color.White,
+            containerColor = MaterialTheme.colorScheme.surface,
             title = {
                 Text(
                     "Vuoi aggiungere una lista?",
@@ -2000,7 +2056,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
             AlertDialog(
                 onDismissRequest = { shoppingListIndex = null },
                 shape = RoundedCornerShape(20.dp),
-                containerColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
                 title = {
                     Column {
@@ -2548,12 +2604,16 @@ private data class AgendaEntry(
     val time: Long
 )
 
-private val FaccioNavy = Color(0xFF173A5E)
-private val FaccioTeal = Color(0xFF188C8C)
+private val FaccioNavy: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+private val FaccioTeal: Color
+    @Composable get() = MaterialTheme.colorScheme.secondary
 private val FaccioCoral = Color(0xFFE57868)
 private val FaccioAmber = Color(0xFFF1AD43)
-private val FaccioCard = Color(0xFFF4F7FA)
-private val FaccioMutedText = Color(0xFF5E6875)
+private val FaccioCard: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+private val FaccioMutedText: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 
 private fun isShoppingTask(title: String): Boolean {
     val text = title.lowercase(Locale.ITALIAN)
@@ -2566,6 +2626,7 @@ private fun isShoppingTask(title: String): Boolean {
     ).any { keyword -> keyword in text }
 }
 
+@Composable
 private fun taskCategoryColor(category: String): Color = when (category) {
     "Salute" -> FaccioCoral
     "Casa" -> FaccioAmber
@@ -2672,8 +2733,8 @@ private fun TodayAgenda(
                     onClick = onAddTask,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = FaccioNavy,
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -2714,7 +2775,7 @@ private fun TodayAgenda(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth().height(5.dp),
                         color = FaccioTeal,
-                        trackColor = Color(0xFFDDE5EA)
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 }
             }
@@ -2725,7 +2786,7 @@ private fun TodayAgenda(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Text("Giro di oggi", fontWeight = FontWeight.Bold)
@@ -2828,7 +2889,7 @@ private fun AgendaTaskCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isNext) Color(0xFFEDF4F8) else Color.White
+            containerColor = if (isNext) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
         )
     ) {
         Row(
