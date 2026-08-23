@@ -113,6 +113,7 @@ data class TaskItem(
     val title: String,
     val completed: Boolean = false,
     val reminderTime: Long? = null,
+    val alarmEnabled: Boolean = false,
     val category: String = "Personale",
     val priority: String = "Media",
     val appointmentTime: Long? = null,
@@ -175,6 +176,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var editedPriority by rememberSaveable { mutableStateOf("Media") }
     var editedAppointmentTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editedAlarmEnabled by rememberSaveable { mutableStateOf(false) }
     var editedRecurrence by rememberSaveable { mutableStateOf("Mai") }
     val editedRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var editedDuration by rememberSaveable { mutableStateOf("30 minuti") }
@@ -198,6 +200,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
     var assistantCustomDuration by rememberSaveable { mutableStateOf("30") }
     var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var taskAlertType by rememberSaveable { mutableStateOf("Promemoria") }
     var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
     val taskRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var taskDuration by rememberSaveable { mutableStateOf("30 minuti") }
@@ -295,12 +298,14 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         recurrence: String = "Mai",
         recurrenceDays: Int = 1,
         durationMinutes: Int = 30,
-        recurrenceWeekdays: List<Int> = emptyList()
+        recurrenceWeekdays: List<Int> = emptyList(),
+        alarmEnabled: Boolean = false
     ) {
         tasks.add(
             TaskItem(
                 title = pendingTask,
                 reminderTime = reminderTime,
+                alarmEnabled = alarmEnabled,
                 category = pendingCategory,
                 priority = pendingPriority,
                 location = place?.address,
@@ -328,6 +333,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
         showReminderChoice = false
         taskReminderMode = "Nessuno"
         taskReminderTime = null
+        taskAlertType = "Promemoria"
         taskRecurrence = "Mai"
         taskRecurrenceWeekdays.clear()
         taskDuration = "30 minuti"
@@ -814,6 +820,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     editedPriority = task.priority
                                     editedAppointmentTime = task.appointmentTime
                                     editedReminderTime = task.reminderTime
+                                    editedAlarmEnabled = task.alarmEnabled
                                     editedRecurrence = task.recurrence
                                     editedRecurrenceWeekdays.clear()
                                     editedRecurrenceWeekdays.addAll(task.recurrenceWeekdays)
@@ -2180,7 +2187,21 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                             onClick = { showReminderPicker(context) { taskReminderTime = it } },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(taskReminderTime?.let { "Promemoria: ${formatReminderTime(it)}" } ?: "Scegli data e ora")
+                            Text(taskReminderTime?.let { "${taskAlertType}: ${formatReminderTime(it)}" } ?: "Scegli data e ora")
+                        }
+                        SelectionMenu(
+                            label = "Tipo di avviso",
+                            selectedValue = taskAlertType,
+                            values = listOf("Promemoria", "Sveglia"),
+                            onValueSelected = { taskAlertType = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (taskAlertType == "Sveglia") {
+                            Text(
+                                "La sveglia continuerà a suonare finché non la spegni o la rimandi.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FaccioMutedText
+                            )
                         }
                     }
                     if (taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi") {
@@ -2231,16 +2252,17 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                         if (needsPlace && place == null) {
                             Toast.makeText(context, "Cerca e verifica prima il luogo", Toast.LENGTH_LONG).show(); return@TextButton
                         }
-                        if (needsTime && !scheduleReminder(context, pendingTask, taskReminderTime!!)) return@TextButton
+                        val alarmEnabled = needsTime && taskAlertType == "Sveglia"
+                        if (needsTime && !scheduleReminder(context, pendingTask, taskReminderTime!!, alarmEnabled)) return@TextButton
                         if (needsPlace) {
                             if (!ensureLocationPermissions(context)) return@TextButton
                             val id = "arrival_${System.currentTimeMillis()}_${pendingTask.hashCode()}"
                             registerArrivalGeofence(context, id, pendingTask, place!!.latitude, place.longitude) { ok ->
-                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays, durationMinutes, taskRecurrenceWeekdays.toList())
+                                if (ok) addPendingTask(taskReminderTime, place, id, taskRecurrence, recurrenceDays, durationMinutes, taskRecurrenceWeekdays.toList(), alarmEnabled)
                                 else Toast.makeText(context, "Attivazione del luogo non riuscita", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays, durationMinutes = durationMinutes, recurrenceWeekdays = taskRecurrenceWeekdays.toList())
+                            addPendingTask(taskReminderTime, recurrence = taskRecurrence, recurrenceDays = recurrenceDays, durationMinutes = durationMinutes, recurrenceWeekdays = taskRecurrenceWeekdays.toList(), alarmEnabled = alarmEnabled)
                         }
                     }
                 ) { Text("Salva attività") }
@@ -2308,6 +2330,15 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
+                        }
+                        if (task.reminderTime != null) {
+                            SelectionMenu(
+                                label = "Tipo di avviso",
+                                selectedValue = if (editedAlarmEnabled) "Sveglia" else "Promemoria",
+                                values = listOf("Promemoria", "Sveglia"),
+                                onValueSelected = { editedAlarmEnabled = it == "Sveglia" },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                         SelectionMenu(
                             label = "Priorità",
@@ -2416,7 +2447,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                         newReminderTime > now &&
                                         (reminderChanged || titleChanged)
                                 if (mustReschedule) {
-                                    if (!scheduleReminder(context, newTitle, newReminderTime)) {
+                                    if (!scheduleReminder(context, newTitle, newReminderTime, editedAlarmEnabled)) {
                                         return@TextButton
                                     }
                                 }
@@ -2434,6 +2465,7 @@ fun FaccioIoApp(onOpenSetup: () -> Unit = {}) {
                                     priority = editedPriority,
                                     appointmentTime = newAppointmentTime,
                                     reminderTime = newReminderTime,
+                                    alarmEnabled = editedAlarmEnabled,
                                     recurrence = editedRecurrence,
                                     recurrenceIntervalDays = recurrenceDays,
                                     recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
@@ -3081,7 +3113,7 @@ private fun updateTaskCompletion(
     task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
 
     val next = nextRecurringOccurrence(task, System.currentTimeMillis())
-    next.reminderTime?.let { scheduleReminder(context, next.title, it) }
+    next.reminderTime?.let { scheduleReminder(context, next.title, it, next.alarmEnabled) }
     next.departureTime?.let {
         scheduleReminder(context, "È ora di partire: ${next.title}", it)
     }
@@ -3332,7 +3364,8 @@ private fun suggestAppointmentPriority(title: String): String {
 internal fun scheduleReminder(
     context: Context,
     taskTitle: String,
-    reminderTime: Long
+    reminderTime: Long,
+    isAlarm: Boolean = false
 ): Boolean {
     val alarmManager =
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -3365,6 +3398,7 @@ internal fun scheduleReminder(
     val reminderIntent = Intent(context, ReminderReceiver::class.java).apply {
         putExtra("task_title", taskTitle)
         putExtra("reminder_time", reminderTime)
+        putExtra("is_alarm", isAlarm)
     }
     val requestCode = reminderRequestCode(taskTitle, reminderTime)
     val pendingIntent = PendingIntent.getBroadcast(
@@ -3507,6 +3541,7 @@ internal fun parseTasks(
                 } else {
                     item.getLong("reminderTime")
                 },
+                alarmEnabled = item.optBoolean("alarmEnabled", false),
                 category = item.optString("category", "Personale"),
                 priority = item.optString("priority", "Media"),
                 appointmentTime = if (item.isNull("appointmentTime")) {
@@ -3582,6 +3617,7 @@ internal fun serializeTasks(tasks: List<TaskItem>): String {
                 put("title", task.title)
                 put("completed", task.completed)
                 put("reminderTime", task.reminderTime ?: JSONObject.NULL)
+                put("alarmEnabled", task.alarmEnabled)
                 put("category", task.category)
                 put("priority", task.priority)
                 put("appointmentTime", task.appointmentTime ?: JSONObject.NULL)
