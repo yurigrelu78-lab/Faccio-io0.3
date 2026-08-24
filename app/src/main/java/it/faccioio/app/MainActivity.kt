@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -198,12 +199,16 @@ fun FaccioIoApp(
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val sentenceKeyboardOptions = KeyboardOptions(
         capitalization = KeyboardCapitalization.Sentences,
         imeAction = ImeAction.Done
     )
     val dismissKeyboardActions = KeyboardActions(
-        onDone = { focusManager.clearFocus() }
+        onDone = {
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
+        }
     )
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
