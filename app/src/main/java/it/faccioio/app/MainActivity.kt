@@ -1991,6 +1991,20 @@ fun FaccioIoApp(
                             Toast.makeText(context, "Scegli l’orario dell’avviso", Toast.LENGTH_LONG).show()
                             return@Button
                         }
+                        val now = System.currentTimeMillis()
+                        if (appointmentTime != null && appointmentTime <= now) {
+                            Toast.makeText(context, "Data e ora della routine devono essere future", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        if (
+                            customRoutineReminderMode == "Personalizzato" &&
+                            reminderTime != null &&
+                            (reminderTime <= now ||
+                                (appointmentTime != null && reminderTime >= appointmentTime))
+                        ) {
+                            Toast.makeText(context, "L’avviso personalizzato deve essere futuro e precedente alla routine", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
                         val editingIndex = editingRoutineTemplateIndex
                         val duplicateBuiltIn = routineTemplates().any {
                             it.title.equals(name, ignoreCase = true)
@@ -2032,22 +2046,34 @@ fun FaccioIoApp(
                             Toast.makeText(context, "Routine aggiornata", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        pendingTask = template.title
-                        pendingCategory = template.category
-                        pendingPriority = template.priority
-                        pendingRoutineSteps = template.routineSteps
-                        taskDuration = durationOption(template.durationMinutes)
-                        taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
-                        taskActivityTime = template.appointmentTime
-                        taskReminderTime = template.reminderTime
-                        taskReminderTiming = if (template.reminderTime != null && template.reminderTime == template.appointmentTime) "All’ora esatta" else "Personalizzato"
-                        taskAlertType = if (template.alarmEnabled) "Sveglia" else "Promemoria"
-                        taskRecurrence = template.recurrence
-                        taskRecurrenceWeekdays.clear()
-                        taskRecurrenceWeekdays.addAll(template.recurrenceWeekdays)
-                        taskReminderMode = if (template.appointmentTime != null) "Data e ora" else "Nessuno"
+                        val saveRoutineDirectly: () -> Unit = save@ {
+                            if (
+                                reminderTime != null &&
+                                !scheduleReminder(
+                                    context,
+                                    template.title,
+                                    reminderTime,
+                                    template.alarmEnabled
+                                )
+                            ) return@save
+                            tasks.add(template)
+                            saveTasks(context, tasks)
+                            showCustomRoutineEditor = false
+                            editingRoutineTemplateIndex = null
+                            Toast.makeText(context, "Routine salvata e aggiunta", Toast.LENGTH_SHORT).show()
+                        }
+                        val conflict = findScheduleConflict(
+                            tasks = tasks,
+                            proposedStart = appointmentTime ?: reminderTime,
+                            proposedDurationMinutes = template.durationMinutes
+                        )
                         showCustomRoutineEditor = false
-                        showReminderChoice = true
+                        if (conflict != null) {
+                            conflictToConfirm = conflict
+                            pendingConflictAction = saveRoutineDirectly
+                        } else {
+                            saveRoutineDirectly()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
                     shape = RoundedCornerShape(12.dp),
@@ -2055,7 +2081,7 @@ fun FaccioIoApp(
                 ) {
                     Text(
                         if (editingRoutineTemplateIndex == null) {
-                            "Salva e configura"
+                            "Salva routine"
                         } else {
                             "Salva modifiche"
                         }
