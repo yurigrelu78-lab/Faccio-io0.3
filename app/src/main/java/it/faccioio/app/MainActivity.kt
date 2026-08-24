@@ -959,6 +959,44 @@ fun FaccioIoApp(
                             modifier = Modifier
                                 .width(5.dp)
                                 .fillMaxHeight()
+                                .background(FaccioTeal)
+                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Routine",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Scegli una sequenza pronta o crea la tua routine personale.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText
+                            )
+                            Button(
+                                onClick = { showRoutineTemplates = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
+                            ) { Text("Scegli una routine") }
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .fillMaxHeight()
                                 .background(Color(0xFF3978C5))
                         )
                         Column(
@@ -1165,8 +1203,7 @@ fun FaccioIoApp(
         }
         FaccioBottomBar(
             selected = mainSection,
-            onSelected = { mainSection = it },
-            onRoutine = { showRoutineTemplates = true }
+            onSelected = { mainSection = it }
         )
     }
 
@@ -3361,12 +3398,11 @@ private val FaccioMutedText: Color
 @Composable
 private fun FaccioBottomBar(
     selected: String,
-    onSelected: (String) -> Unit,
-    onRoutine: () -> Unit
+    onSelected: (String) -> Unit
 ) {
     val items = listOf(
         Triple("Oggi", Icons.Default.DateRange, { onSelected("Oggi") }),
-        Triple("Routine", Icons.Default.CheckCircle, onRoutine),
+        Triple("Attività", Icons.Default.CheckCircle, { onSelected("Attività") }),
         Triple("Strumenti", Icons.Default.Build, { onSelected("Strumenti") })
     )
     NavigationBar(
