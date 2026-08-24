@@ -55,11 +55,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -203,23 +198,9 @@ fun FaccioIoApp(
     onThemeModeChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
     val sentenceKeyboardOptions = KeyboardOptions(
         capitalization = KeyboardCapitalization.Sentences,
         imeAction = ImeAction.Done
-    )
-    val dismissKeyboard = {
-        keyboardController?.hide()
-        focusManager.clearFocus(force = true)
-    }
-    val dismissKeyboardActions = KeyboardActions(
-        onDone = { dismissKeyboard() },
-        onGo = { dismissKeyboard() },
-        onNext = { dismissKeyboard() },
-        onPrevious = { dismissKeyboard() },
-        onSearch = { dismissKeyboard() },
-        onSend = { dismissKeyboard() }
     )
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
@@ -524,7 +505,7 @@ fun FaccioIoApp(
                 } else null,
                 singleLine = true,
                 keyboardOptions = sentenceKeyboardOptions,
-                keyboardActions = dismissKeyboardActions,
+                keyboardActions = localDismissKeyboardActions(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = FaccioTeal,
@@ -552,7 +533,7 @@ fun FaccioIoApp(
             label = { Text("Cosa devi fare?") },
             singleLine = true,
             keyboardOptions = sentenceKeyboardOptions,
-            keyboardActions = dismissKeyboardActions,
+            keyboardActions = localDismissKeyboardActions(),
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = FaccioTeal,
@@ -1374,7 +1355,7 @@ fun FaccioIoApp(
                         minLines = 2,
                         maxLines = 4,
                         keyboardOptions = sentenceKeyboardOptions,
-                        keyboardActions = dismissKeyboardActions,
+                        keyboardActions = localDismissKeyboardActions(),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = FaccioTeal,
@@ -1820,25 +1801,13 @@ fun FaccioIoApp(
                 ) {
                     OutlinedTextField(
                         value = customRoutineName,
-                        onValueChange = { value ->
-                            customRoutineName = value.replace("\n", "")
-                            if ('\n' in value) dismissKeyboard()
-                        },
+                        onValueChange = { customRoutineName = it },
                         label = { Text("Nome della routine") },
                         placeholder = { Text("Es. Prepararmi per il lavoro") },
                         singleLine = true,
                         keyboardOptions = sentenceKeyboardOptions,
-                        keyboardActions = dismissKeyboardActions,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onPreviewKeyEvent { event ->
-                                if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
-                                    dismissKeyboard()
-                                    true
-                                } else {
-                                    false
-                                }
-                            },
+                        keyboardActions = localDismissKeyboardActions(),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = FaccioTeal,
@@ -1961,7 +1930,7 @@ fun FaccioIoApp(
                                     minLines = 1,
                                     maxLines = 3,
                                     keyboardOptions = sentenceKeyboardOptions,
-                                    keyboardActions = dismissKeyboardActions,
+                                    keyboardActions = localDismissKeyboardActions(),
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
@@ -2644,7 +2613,7 @@ fun FaccioIoApp(
                                 label = { Text("Nuovo elemento") },
                                 singleLine = true,
                                 keyboardOptions = sentenceKeyboardOptions,
-                                keyboardActions = dismissKeyboardActions,
+                                keyboardActions = localDismissKeyboardActions(),
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -2836,7 +2805,7 @@ fun FaccioIoApp(
                             onValueChange = { taskLocationQuery = it; taskResolvedPlace = null },
                             label = { Text("Luogo o indirizzo") },
                             keyboardOptions = sentenceKeyboardOptions,
-                            keyboardActions = dismissKeyboardActions,
+                            keyboardActions = localDismissKeyboardActions(),
                             modifier = Modifier.fillMaxWidth()
                         )
                         OutlinedButton(
@@ -3026,7 +2995,7 @@ fun FaccioIoApp(
                             label = { Text("Nome attività") },
                             singleLine = true,
                             keyboardOptions = sentenceKeyboardOptions,
-                            keyboardActions = dismissKeyboardActions
+                            keyboardActions = localDismissKeyboardActions()
                         )
                         SelectionMenu(
                             label = "Categoria",
@@ -3175,7 +3144,7 @@ fun FaccioIoApp(
                                         minLines = 1,
                                         maxLines = 3,
                                         keyboardOptions = sentenceKeyboardOptions,
-                                        keyboardActions = dismissKeyboardActions
+                                        keyboardActions = localDismissKeyboardActions()
                                     )
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -4428,6 +4397,26 @@ internal fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
 private fun formatReminderTime(time: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
         .format(Date(time))
+
+@Composable
+private fun localDismissKeyboardActions(): KeyboardActions {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val dismiss = {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
+
+    return KeyboardActions(
+        onDone = { dismiss() },
+        onGo = { dismiss() },
+        onNext = { dismiss() },
+        onPrevious = { dismiss() },
+        onSearch = { dismiss() },
+        onSend = { dismiss() }
+    )
+}
 
 @Composable
 private fun SelectionMenu(
