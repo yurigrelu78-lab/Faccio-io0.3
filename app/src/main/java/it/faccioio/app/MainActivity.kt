@@ -1724,72 +1724,88 @@ fun FaccioIoApp(
                         color = FaccioTeal
                     )
                     customRoutineSteps.forEachIndexed { index, step ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(FaccioCard, RoundedCornerShape(14.dp))
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .background(FaccioCard, RoundedCornerShape(50)),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text(
-                                    "${index + 1}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = FaccioNavy
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(50)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "${index + 1}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = FaccioNavy
+                                    )
+                                }
+                                OutlinedTextField(
+                                    value = step,
+                                    onValueChange = { customRoutineSteps[index] = it },
+                                    label = { Text("Cosa devi fare?") },
+                                    singleLine = false,
+                                    minLines = 1,
+                                    maxLines = 3,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = FaccioTeal,
+                                        focusedLabelColor = FaccioTeal,
+                                        cursorColor = FaccioTeal
+                                    )
                                 )
                             }
-                            OutlinedTextField(
-                                value = step,
-                                onValueChange = { customRoutineSteps[index] = it },
-                                label = { Text("Cosa devi fare?") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = FaccioTeal,
-                                    focusedLabelColor = FaccioTeal,
-                                    cursorColor = FaccioTeal
-                                )
-                            )
-                            TextButton(
-                                onClick = {
-                                    if (index > 0) {
-                                        val previous = customRoutineSteps[index - 1]
-                                        customRoutineSteps[index - 1] = customRoutineSteps[index]
-                                        customRoutineSteps[index] = previous
-                                    }
-                                },
-                                enabled = index > 0,
-                                contentPadding = PaddingValues(horizontal = 2.dp)
-                            ) { Text("↑") }
-                            TextButton(
-                                onClick = {
-                                    if (index < customRoutineSteps.lastIndex) {
-                                        val next = customRoutineSteps[index + 1]
-                                        customRoutineSteps[index + 1] = customRoutineSteps[index]
-                                        customRoutineSteps[index] = next
-                                    }
-                                },
-                                enabled = index < customRoutineSteps.lastIndex,
-                                contentPadding = PaddingValues(horizontal = 2.dp)
-                            ) { Text("↓") }
-                            TextButton(
-                                onClick = {
-                                    if (customRoutineSteps.size > 1) {
-                                        customRoutineSteps.removeAt(index)
-                                    } else {
-                                        customRoutineSteps[0] = ""
-                                    }
-                                },
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = FaccioCoral
-                                ),
-                                contentPadding = PaddingValues(horizontal = 4.dp)
-                            ) { Text("×") }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        if (index > 0) {
+                                            val previous = customRoutineSteps[index - 1]
+                                            customRoutineSteps[index - 1] = customRoutineSteps[index]
+                                            customRoutineSteps[index] = previous
+                                        }
+                                    },
+                                    enabled = index > 0,
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) { Text("Su") }
+                                TextButton(
+                                    onClick = {
+                                        if (index < customRoutineSteps.lastIndex) {
+                                            val next = customRoutineSteps[index + 1]
+                                            customRoutineSteps[index + 1] = customRoutineSteps[index]
+                                            customRoutineSteps[index] = next
+                                        }
+                                    },
+                                    enabled = index < customRoutineSteps.lastIndex,
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) { Text("Giù") }
+                                TextButton(
+                                    onClick = {
+                                        if (customRoutineSteps.size > 1) {
+                                            customRoutineSteps.removeAt(index)
+                                        } else {
+                                            customRoutineSteps[0] = ""
+                                        }
+                                    },
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = FaccioCoral
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) { Text("Elimina") }
+                            }
                         }
                     }
                     OutlinedButton(
