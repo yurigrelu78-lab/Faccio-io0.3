@@ -253,6 +253,12 @@ fun FaccioIoApp(
     var customRoutineName by rememberSaveable { mutableStateOf("") }
     var customRoutineCategory by rememberSaveable { mutableStateOf("Personale") }
     var customRoutinePriority by rememberSaveable { mutableStateOf("Media") }
+    var customRoutineAppointmentTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var customRoutineReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
+    var customRoutineReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    var customRoutineAlarmEnabled by rememberSaveable { mutableStateOf(false) }
+    var customRoutineRecurrence by rememberSaveable { mutableStateOf("Mai") }
+    val customRoutineRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     val customRoutineSteps = remember { mutableStateListOf("") }
     val customRoutineTemplates = remember(context) {
         mutableStateListOf<TaskItem>().apply { addAll(loadCustomRoutineTemplates(context)) }
@@ -1522,6 +1528,14 @@ fun FaccioIoApp(
                                         pendingRoutineSteps = template.routineSteps
                                         taskDuration = durationOption(template.durationMinutes)
                                         taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
+                                        taskActivityTime = template.appointmentTime
+                                        taskReminderTime = template.reminderTime
+                                        taskReminderTiming = if (template.reminderTime != null && template.reminderTime == template.appointmentTime) "All’ora esatta" else "Personalizzato"
+                                        taskAlertType = if (template.alarmEnabled) "Sveglia" else "Promemoria"
+                                        taskRecurrence = template.recurrence
+                                        taskRecurrenceWeekdays.clear()
+                                        taskRecurrenceWeekdays.addAll(template.recurrenceWeekdays)
+                                        taskReminderMode = if (template.appointmentTime != null) "Data e ora" else "Nessuno"
                                         showRoutineTemplates = false
                                         showReminderChoice = true
                                     },
@@ -1535,6 +1549,17 @@ fun FaccioIoApp(
                                         customRoutineName = "${template.title} personalizzata"
                                         customRoutineCategory = template.category
                                         customRoutinePriority = template.priority
+                                        customRoutineAppointmentTime = template.appointmentTime
+                                        customRoutineReminderTime = template.reminderTime
+                                        customRoutineReminderMode = when {
+                                            template.reminderTime == null -> "Nessuno"
+                                            template.reminderTime == template.appointmentTime -> "All’ora esatta"
+                                            else -> "Personalizzato"
+                                        }
+                                        customRoutineAlarmEnabled = template.alarmEnabled
+                                        customRoutineRecurrence = template.recurrence
+                                        customRoutineRecurrenceWeekdays.clear()
+                                        customRoutineRecurrenceWeekdays.addAll(template.recurrenceWeekdays)
                                         customRoutineSteps.clear()
                                         customRoutineSteps.addAll(template.routineSteps.map { it.title })
                                         showRoutineTemplates = false
@@ -1589,6 +1614,14 @@ fun FaccioIoApp(
                                             pendingRoutineSteps = template.routineSteps
                                             taskDuration = durationOption(template.durationMinutes)
                                             taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
+                                            taskActivityTime = template.appointmentTime
+                                            taskReminderTime = template.reminderTime
+                                            taskReminderTiming = if (template.reminderTime != null && template.reminderTime == template.appointmentTime) "All’ora esatta" else "Personalizzato"
+                                            taskAlertType = if (template.alarmEnabled) "Sveglia" else "Promemoria"
+                                            taskRecurrence = template.recurrence
+                                            taskRecurrenceWeekdays.clear()
+                                            taskRecurrenceWeekdays.addAll(template.recurrenceWeekdays)
+                                            taskReminderMode = if (template.appointmentTime != null) "Data e ora" else "Nessuno"
                                             showRoutineTemplates = false
                                             showReminderChoice = true
                                         },
@@ -1604,6 +1637,17 @@ fun FaccioIoApp(
                                                 customRoutineName = template.title
                                                 customRoutineCategory = template.category
                                                 customRoutinePriority = template.priority
+                                                customRoutineAppointmentTime = template.appointmentTime
+                                                customRoutineReminderTime = template.reminderTime
+                                                customRoutineReminderMode = when {
+                                                    template.reminderTime == null -> "Nessuno"
+                                                    template.reminderTime == template.appointmentTime -> "All’ora esatta"
+                                                    else -> "Personalizzato"
+                                                }
+                                                customRoutineAlarmEnabled = template.alarmEnabled
+                                                customRoutineRecurrence = template.recurrence
+                                                customRoutineRecurrenceWeekdays.clear()
+                                                customRoutineRecurrenceWeekdays.addAll(template.recurrenceWeekdays)
                                                 customRoutineSteps.clear()
                                                 customRoutineSteps.addAll(
                                                     template.routineSteps.map { it.title }
@@ -1641,6 +1685,12 @@ fun FaccioIoApp(
                             customRoutineName = ""
                             customRoutineCategory = "Personale"
                             customRoutinePriority = "Media"
+                            customRoutineAppointmentTime = null
+                            customRoutineReminderMode = "Nessuno"
+                            customRoutineReminderTime = null
+                            customRoutineAlarmEnabled = false
+                            customRoutineRecurrence = "Mai"
+                            customRoutineRecurrenceWeekdays.clear()
                             customRoutineSteps.clear()
                             customRoutineSteps.add("")
                             showRoutineTemplates = false
@@ -1741,6 +1791,62 @@ fun FaccioIoApp(
                             TASK_PRIORITIES,
                             { customRoutinePriority = it },
                             Modifier.weight(1f)
+                        )
+                    }
+                    Text("ORARIO E AVVISO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = FaccioTeal)
+                    OutlinedButton(
+                        onClick = {
+                            showDateTimePicker(context, customRoutineAppointmentTime ?: (System.currentTimeMillis() + 60L * 60L * 1000L)) { selectedTime ->
+                                customRoutineAppointmentTime = selectedTime
+                                if (customRoutineReminderMode == "All’ora esatta") customRoutineReminderTime = selectedTime
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(customRoutineAppointmentTime?.let { "Routine: ${formatReminderTime(it)}" } ?: "Aggiungi data e ora")
+                    }
+                    SelectionMenu(
+                        label = "Quando avvisare",
+                        selectedValue = customRoutineReminderMode,
+                        values = listOf("Nessuno", "All’ora esatta", "Personalizzato"),
+                        onValueSelected = { mode ->
+                            customRoutineReminderMode = mode
+                            customRoutineReminderTime = when (mode) {
+                                "Nessuno" -> null
+                                "All’ora esatta" -> customRoutineAppointmentTime
+                                else -> customRoutineReminderTime
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (customRoutineReminderMode == "Personalizzato") {
+                        OutlinedButton(onClick = { showReminderPicker(context) { customRoutineReminderTime = it } }, modifier = Modifier.fillMaxWidth()) {
+                            Text(customRoutineReminderTime?.let { "Avviso: ${formatReminderTime(it)}" } ?: "Scegli data e ora dell’avviso")
+                        }
+                    }
+                    if (customRoutineReminderMode != "Nessuno") {
+                        SelectionMenu(
+                            label = "Tipo di avviso",
+                            selectedValue = if (customRoutineAlarmEnabled) "Sveglia" else "Promemoria",
+                            values = listOf("Promemoria", "Sveglia"),
+                            onValueSelected = { customRoutineAlarmEnabled = it == "Sveglia" },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    SelectionMenu(
+                        label = "Ripetizione",
+                        selectedValue = customRoutineRecurrence,
+                        values = TASK_RECURRENCES,
+                        onValueSelected = { customRoutineRecurrence = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (customRoutineRecurrence == "Personalizzata") {
+                        WeekdaySelector(
+                            selectedDays = customRoutineRecurrenceWeekdays,
+                            onToggle = { day ->
+                                if (day in customRoutineRecurrenceWeekdays) customRoutineRecurrenceWeekdays.remove(day)
+                                else customRoutineRecurrenceWeekdays.add(day)
+                            }
                         )
                     }
                     Text(
@@ -1867,6 +1973,24 @@ fun FaccioIoApp(
                             ).show()
                             return@Button
                         }
+                        val appointmentTime = customRoutineAppointmentTime
+                        val reminderTime = when (customRoutineReminderMode) {
+                            "Nessuno" -> null
+                            "All’ora esatta" -> appointmentTime
+                            else -> customRoutineReminderTime
+                        }
+                        if (customRoutineRecurrence != "Mai" && appointmentTime == null) {
+                            Toast.makeText(context, "La ripetizione richiede data e ora", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        if (customRoutineRecurrence == "Personalizzata" && customRoutineRecurrenceWeekdays.isEmpty()) {
+                            Toast.makeText(context, "Seleziona almeno un giorno", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
+                        if (customRoutineReminderMode != "Nessuno" && reminderTime == null) {
+                            Toast.makeText(context, "Scegli l’orario dell’avviso", Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
                         val editingIndex = editingRoutineTemplateIndex
                         val duplicateBuiltIn = routineTemplates().any {
                             it.title.equals(name, ignoreCase = true)
@@ -1887,6 +2011,11 @@ fun FaccioIoApp(
                             title = name,
                             category = customRoutineCategory,
                             priority = customRoutinePriority,
+                            appointmentTime = appointmentTime,
+                            reminderTime = reminderTime,
+                            alarmEnabled = customRoutineAlarmEnabled && reminderTime != null,
+                            recurrence = customRoutineRecurrence,
+                            recurrenceWeekdays = if (customRoutineRecurrence == "Personalizzata") customRoutineRecurrenceWeekdays.toList() else emptyList(),
                             durationMinutes = (steps.size * 5).coerceIn(30, 720),
                             routineSteps = steps.map { RoutineStep(it) }
                         )
@@ -1909,6 +2038,14 @@ fun FaccioIoApp(
                         pendingRoutineSteps = template.routineSteps
                         taskDuration = durationOption(template.durationMinutes)
                         taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
+                        taskActivityTime = template.appointmentTime
+                        taskReminderTime = template.reminderTime
+                        taskReminderTiming = if (template.reminderTime != null && template.reminderTime == template.appointmentTime) "All’ora esatta" else "Personalizzato"
+                        taskAlertType = if (template.alarmEnabled) "Sveglia" else "Promemoria"
+                        taskRecurrence = template.recurrence
+                        taskRecurrenceWeekdays.clear()
+                        taskRecurrenceWeekdays.addAll(template.recurrenceWeekdays)
+                        taskReminderMode = if (template.appointmentTime != null) "Data e ora" else "Nessuno"
                         showCustomRoutineEditor = false
                         showReminderChoice = true
                     },
@@ -3888,6 +4025,13 @@ internal fun loadCustomRoutineTemplates(context: Context): List<TaskItem> {
                 title = item.optString("title"),
                 category = item.optString("category", "Personale"),
                 priority = item.optString("priority", "Media"),
+                appointmentTime = if (item.isNull("appointmentTime")) null else item.optLong("appointmentTime"),
+                reminderTime = if (item.isNull("reminderTime")) null else item.optLong("reminderTime"),
+                alarmEnabled = item.optBoolean("alarmEnabled", false),
+                recurrence = item.optString("recurrence", "Mai"),
+                recurrenceWeekdays = item.optJSONArray("recurrenceWeekdays")?.let { days ->
+                    List(days.length()) { dayIndex -> days.optInt(dayIndex) }
+                }.orEmpty(),
                 durationMinutes = item.optInt("durationMinutes", 15).coerceIn(5, 720),
                 routineSteps = List(steps.length()) { stepIndex ->
                     RoutineStep(steps.optString(stepIndex))
@@ -3907,6 +4051,11 @@ internal fun saveCustomRoutineTemplates(context: Context, templates: List<TaskIt
                 put("title", template.title)
                 put("category", template.category)
                 put("priority", template.priority)
+                put("appointmentTime", template.appointmentTime ?: JSONObject.NULL)
+                put("reminderTime", template.reminderTime ?: JSONObject.NULL)
+                put("alarmEnabled", template.alarmEnabled)
+                put("recurrence", template.recurrence)
+                put("recurrenceWeekdays", JSONArray(template.recurrenceWeekdays))
                 put("durationMinutes", template.durationMinutes)
                 put(
                     "steps",
