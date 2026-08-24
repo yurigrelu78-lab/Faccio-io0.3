@@ -868,10 +868,13 @@ fun FaccioIoApp(
                                     editedCategory = task.category
                                     editedPriority = task.priority
                                     editedAppointmentTime = task.appointmentTime
+                                        ?: task.reminderTime?.takeIf { task.recurrence != "Mai" }
                                     editedReminderTime = task.reminderTime
                                     editedAlarmEnabled = task.alarmEnabled
                                     editedReminderMode = when {
                                         task.reminderTime == null -> "Nessuno"
+                                        task.appointmentTime == null && task.recurrence != "Mai" ->
+                                            "All’ora esatta"
                                         task.appointmentTime != null &&
                                             task.reminderTime == task.appointmentTime -> "All’ora esatta"
                                         else -> "Personalizzato"
@@ -2789,7 +2792,9 @@ fun FaccioIoApp(
                             onValueSelected = { editedCategory = it },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        if (task.routineSteps.isNotEmpty() || task.appointmentTime != null) {
+                        val isPersonalRoutine = task.routineSteps.isNotEmpty() ||
+                            task.recurrence != "Mai" || task.reminderTime != null
+                        if (isPersonalRoutine || task.appointmentTime != null) {
                             OutlinedButton(
                                 onClick = {
                                     showDateTimePicker(
