@@ -5,7 +5,7 @@ import java.util.Locale
 
 data class ParsedAppointment(
     val title: String,
-    val time: Long,
+    val time: Long?,
     val location: String?
 )
 
@@ -26,7 +26,7 @@ fun parseAppointment(
             hour in 0..23 && minute in 0..59 &&
                 (match.value.contains("alle") || match.value.contains("ore") ||
                     match.value.contains('.') || match.value.contains(':'))
-        } ?: return null
+        }
 
     val result = (now.clone() as Calendar).apply {
         set(Calendar.SECOND, 0)
@@ -68,7 +68,7 @@ fun parseAppointment(
         }
         "dopodomani" in lower -> result.add(Calendar.DAY_OF_YEAR, 2)
         "domani" in lower -> result.add(Calendar.DAY_OF_YEAR, 1)
-        "oggi" !in lower -> {
+        timeMatch != null && "oggi" !in lower -> {
             val weekdays = listOf(
                 "domenica", "lunedì", "martedì", "mercoledì",
                 "giovedì", "venerdì", "sabato"
@@ -84,12 +84,14 @@ fun parseAppointment(
         }
     }
 
-    result.set(Calendar.HOUR_OF_DAY, timeMatch.groupValues[1].toInt())
-    result.set(Calendar.MINUTE, timeMatch.groupValues[2].toIntOrNull() ?: 0)
-    if (absoluteDateWithoutYear && result.timeInMillis <= now.timeInMillis) {
-        result.add(Calendar.YEAR, 1)
+    timeMatch?.let {
+        result.set(Calendar.HOUR_OF_DAY, it.groupValues[1].toInt())
+        result.set(Calendar.MINUTE, it.groupValues[2].toIntOrNull() ?: 0)
+        if (absoluteDateWithoutYear && result.timeInMillis <= now.timeInMillis) {
+            result.add(Calendar.YEAR, 1)
+        }
+        if (result.timeInMillis <= now.timeInMillis && "oggi" in lower) return null
     }
-    if (result.timeInMillis <= now.timeInMillis && "oggi" in lower) return null
 
     val locationMatch = Regex(
         "\\b(?:presso|in|a)\\s+(.+)$",
@@ -103,7 +105,7 @@ fun parseAppointment(
     var title = original
         .replace(dateMatch?.value ?: "", "", ignoreCase = true)
         .replace(textDateMatch?.value ?: "", "", ignoreCase = true)
-        .replace(timeMatch.value, "", ignoreCase = true)
+        .replace(timeMatch?.value ?: "", "", ignoreCase = true)
         .replace(Regex("\\b(?:oggi|domani|dopodomani|lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica)\\b", RegexOption.IGNORE_CASE), "")
     if (locationMatch != null) title = title.replace(locationMatch.value, "", ignoreCase = true)
     title = title
@@ -111,8 +113,8 @@ fun parseAppointment(
         .trim(' ', ',', '.', '-')
         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ITALIAN) else it.toString() }
 
-    if (title.isBlank()) return null
-    return ParsedAppointment(title, result.timeInMillis, location)
+    if (title.isBlank() || (timeMatch == null && location.isNullOrBlank())) return null
+    return ParsedAppointment(title, timeMatch?.let { result.timeInMillis }, location)
 }
 
 private fun normalizeSpokenTime(text: String): String {
