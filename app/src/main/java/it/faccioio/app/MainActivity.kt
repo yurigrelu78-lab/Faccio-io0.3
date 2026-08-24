@@ -239,6 +239,7 @@ fun FaccioIoApp(
     var pendingListSuggestionKind by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingHasShoppingList by rememberSaveable { mutableStateOf(false) }
     var assistantListEnabled by rememberSaveable { mutableStateOf(false) }
+    var assistantListSuggestionKind by rememberSaveable { mutableStateOf<String?>(null) }
     var shoppingListIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var newShoppingItem by rememberSaveable { mutableStateOf("") }
     val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
@@ -1352,6 +1353,9 @@ fun FaccioIoApp(
                                 Toast.LENGTH_LONG
                             ).show()
                         } else if (parsed.time == null && !parsed.location.isNullOrBlank()) {
+                            val listKind = suggestedListKind(
+                                "${parsed.title} ${parsed.location.orEmpty()} $assistantText"
+                            )
                             pendingTask = parsed.title
                             pendingCategory = suggestAppointmentCategory(parsed.title)
                             pendingPriority = suggestAppointmentPriority(parsed.title)
@@ -1359,8 +1363,14 @@ fun FaccioIoApp(
                             taskLocationQuery = parsed.location
                             taskResolvedPlace = null
                             taskPlaceMessage = "Ricerca del luogo in corso…"
+                            pendingHasShoppingList = false
+                            pendingListSuggestionKind = listKind
                             showAssistant = false
-                            showReminderChoice = true
+                            if (listKind != null) {
+                                showShoppingSuggestion = true
+                            } else {
+                                showReminderChoice = true
+                            }
                             resolvePlace(context, parsed.location) { place ->
                                 taskResolvedPlace = place
                                 taskPlaceMessage = if (place == null) {
@@ -1370,7 +1380,10 @@ fun FaccioIoApp(
                                 }
                             }
                         } else {
-                            assistantListEnabled = suggestedListKind(parsed.title) != null
+                            assistantListSuggestionKind = suggestedListKind(
+                                "${parsed.title} ${parsed.location.orEmpty()} $assistantText"
+                            )
+                            assistantListEnabled = assistantListSuggestionKind != null
                             assistantResult = parsed
                             showAssistant = false
                         }
@@ -1953,7 +1966,7 @@ fun FaccioIoApp(
                         placeLookupMessage,
                         style = MaterialTheme.typography.bodySmall
                     )
-                    suggestedListKind(appointment.title)?.let { kind ->
+                    assistantListSuggestionKind?.let { kind ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -2184,6 +2197,7 @@ fun FaccioIoApp(
                                     openShoppingList(tasks.lastIndex)
                                 }
                                 assistantText = ""
+                                assistantListSuggestionKind = null
                                 assistantResult = null
                                 Toast.makeText(
                                     context,
