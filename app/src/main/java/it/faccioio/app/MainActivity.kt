@@ -42,7 +42,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DateRange
@@ -4381,12 +4381,20 @@ private fun SelectionMenu(
     var expanded by remember { mutableStateOf(false) }
     val icon = selectionIcon(label, selectedValue)
     val iconColor = selectionColor(label, selectedValue)
+    val isPriority = label.contains("Priorità", ignoreCase = true) && selectedValue != "Tutte"
 
     Box(modifier = modifier) {
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = FaccioNavy,
+                containerColor = if (isPriority) iconColor.copy(alpha = 0.13f) else Color.Transparent
+            ),
+            border = BorderStroke(
+                1.dp,
+                if (isPriority) iconColor.copy(alpha = 0.72f) else MaterialTheme.colorScheme.outline
+            ),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
             icon?.let {
@@ -4425,7 +4433,7 @@ private fun selectionIcon(label: String, value: String): ImageVector? = when {
         "Personale" -> Icons.Default.Person
         else -> null
     }
-    label.contains("Priorità", ignoreCase = true) -> Icons.Default.Flag
+    label.contains("Priorità", ignoreCase = true) -> Icons.Default.FlashOn
     else -> null
 }
 
@@ -4471,7 +4479,7 @@ private fun PriorityFilterRow(selected: String, onSelected: (String) -> Unit) {
                 onClick = { onSelected(priority) },
                 label = { Text(priority) },
                 leadingIcon = if (priority == "Tutte") null else {
-                    { Icon(Icons.Default.Flag, contentDescription = null, tint = priorityColor(priority), modifier = Modifier.size(17.dp)) }
+                    { Icon(Icons.Default.FlashOn, contentDescription = null, tint = priorityColor(priority), modifier = Modifier.size(17.dp)) }
                 },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -4484,9 +4492,10 @@ private fun PriorityFilterRow(selected: String, onSelected: (String) -> Unit) {
 
 @Composable
 private fun priorityColor(priority: String) = when (priority) {
-    "Alta" -> MaterialTheme.colorScheme.error
-    "Bassa" -> MaterialTheme.colorScheme.tertiary
-    else -> MaterialTheme.colorScheme.primary
+    "Bassa" -> Color(0xFF91A78D)
+    "Media" -> Color(0xFF8FAFC8)
+    "Alta" -> Color(0xFFA58AC3)
+    else -> FaccioMutedText
 }
 
 internal fun loadTasks(context: Context): List<TaskItem> {
