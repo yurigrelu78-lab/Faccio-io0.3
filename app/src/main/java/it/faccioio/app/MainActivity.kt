@@ -194,6 +194,8 @@ fun FaccioIoApp(
     var editedAppointmentTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedAlarmEnabled by rememberSaveable { mutableStateOf(false) }
+    var editedReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
+    val editedRoutineSteps = remember { mutableStateListOf<RoutineStep>() }
     var editedRecurrence by rememberSaveable { mutableStateOf("Mai") }
     val editedRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var editedDuration by rememberSaveable { mutableStateOf("30 minuti") }
@@ -868,6 +870,14 @@ fun FaccioIoApp(
                                     editedAppointmentTime = task.appointmentTime
                                     editedReminderTime = task.reminderTime
                                     editedAlarmEnabled = task.alarmEnabled
+                                    editedReminderMode = when {
+                                        task.reminderTime == null -> "Nessuno"
+                                        task.appointmentTime != null &&
+                                            task.reminderTime == task.appointmentTime -> "All’ora esatta"
+                                        else -> "Personalizzato"
+                                    }
+                                    editedRoutineSteps.clear()
+                                    editedRoutineSteps.addAll(task.routineSteps)
                                     editedRecurrence = task.recurrence
                                     editedRecurrenceWeekdays.clear()
                                     editedRecurrenceWeekdays.addAll(task.recurrenceWeekdays)
@@ -2779,41 +2789,73 @@ fun FaccioIoApp(
                             onValueSelected = { editedCategory = it },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        task.appointmentTime?.let { originalAppointmentTime ->
+                        if (task.routineSteps.isNotEmpty() || task.appointmentTime != null) {
                             OutlinedButton(
                                 onClick = {
                                     showDateTimePicker(
                                         context,
-                                        editedAppointmentTime ?: originalAppointmentTime
+                                        editedAppointmentTime
+                                            ?: (System.currentTimeMillis() + 60L * 60L * 1000L)
                                     ) { selectedTime ->
                                         val oldReminderTime = task.reminderTime
-                                        val oldLeadTime = if (oldReminderTime != null) {
-                                            (originalAppointmentTime - oldReminderTime)
+                                        val oldLeadTime = if (
+                                            oldReminderTime != null && task.appointmentTime != null
+                                        ) {
+                                            (task.appointmentTime - oldReminderTime)
                                                 .takeIf { it > 0L }
                                                 ?: 24L * 60L * 60L * 1000L
                                         } else {
                                             null
                                         }
                                         editedAppointmentTime = selectedTime
-                                        editedReminderTime = oldLeadTime?.let {
-                                            selectedTime - it
+                                        editedReminderTime = when (editedReminderMode) {
+                                            "All’ora esatta" -> selectedTime
+                                            "Personalizzato" -> oldLeadTime?.let { selectedTime - it }
+                                                ?: editedReminderTime
+                                            else -> null
                                         }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    "Appuntamento: ${formatReminderTime(editedAppointmentTime ?: originalAppointmentTime)}"
+                                    editedAppointmentTime?.let {
+                                        "Routine: ${formatReminderTime(it)}"
+                                    } ?: "Aggiungi data e ora alla routine"
                                 )
                             }
-                            editedReminderTime?.let { newReminderTime ->
-                                Text(
-                                    "Promemoria adattato: ${formatReminderTime(newReminderTime)}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                            SelectionMenu(
+                                label = "Quando avvisare",
+                                selectedValue = editedReminderMode,
+                                values = listOf("Nessuno", "All’ora esatta", "Personalizzato"),
+                                onValueSelected = { mode ->
+                                    editedReminderMode = mode
+                                    editedReminderTime = when (mode) {
+                                        "Nessuno" -> null
+                                        "All’ora esatta" -> editedAppointmentTime
+                                        else -> editedReminderTime?.takeIf {
+                                            editedAppointmentTime == null || it < editedAppointmentTime!!
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (editedReminderMode == "Personalizzato") {
+                                OutlinedButton(
+                                    onClick = {
+                                        showReminderPicker(context) { editedReminderTime = it }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        editedReminderTime?.let {
+                                            "Avviso: ${formatReminderTime(it)}"
+                                        } ?: "Scegli data e ora dell’avviso"
+                                    )
+                                }
                             }
                         }
-                        if (task.reminderTime != null) {
+                        if (editedReminderMode != "Nessuno") {
                             SelectionMenu(
                                 label = "Tipo di avviso",
                                 selectedValue = if (editedAlarmEnabled) "Sveglia" else "Promemoria",
@@ -2860,6 +2902,74 @@ fun FaccioIoApp(
                             onSelected = { editedDuration = it },
                             onCustomChanged = { editedCustomDuration = it }
                         )
+                        if (task.routineSteps.isNotEmpty()) {
+                            Text(
+                                "PASSAGGI DELLA ROUTINE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = FaccioTeal
+                            )
+                            editedRoutineSteps.forEachIndexed { stepIndex, step ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(FaccioCard, RoundedCornerShape(12.dp))
+                                        .padding(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = step.title,
+                                        onValueChange = {
+                                            editedRoutineSteps[stepIndex] = step.copy(title = it)
+                                        },
+                                        label = { Text("Passaggio ${stepIndex + 1}") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 1,
+                                        maxLines = 3
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                if (stepIndex > 0) {
+                                                    val previous = editedRoutineSteps[stepIndex - 1]
+                                                    editedRoutineSteps[stepIndex - 1] = editedRoutineSteps[stepIndex]
+                                                    editedRoutineSteps[stepIndex] = previous
+                                                }
+                                            },
+                                            enabled = stepIndex > 0
+                                        ) { Text("Su") }
+                                        TextButton(
+                                            onClick = {
+                                                if (stepIndex < editedRoutineSteps.lastIndex) {
+                                                    val next = editedRoutineSteps[stepIndex + 1]
+                                                    editedRoutineSteps[stepIndex + 1] = editedRoutineSteps[stepIndex]
+                                                    editedRoutineSteps[stepIndex] = next
+                                                }
+                                            },
+                                            enabled = stepIndex < editedRoutineSteps.lastIndex
+                                        ) { Text("Giù") }
+                                        TextButton(
+                                            onClick = {
+                                                if (editedRoutineSteps.size > 1) {
+                                                    editedRoutineSteps.removeAt(stepIndex)
+                                                } else {
+                                                    editedRoutineSteps[0] = RoutineStep("")
+                                                }
+                                            },
+                                            colors = ButtonDefaults.textButtonColors(contentColor = FaccioCoral)
+                                        ) { Text("Elimina") }
+                                    }
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = { editedRoutineSteps.add(RoutineStep("")) },
+                                enabled = editedRoutineSteps.size < 20,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Aggiungi passaggio") }
+                        }
                     }
                 },
                 confirmButton = {
@@ -2883,14 +2993,25 @@ fun FaccioIoApp(
                                     Toast.makeText(context, "Seleziona almeno un giorno della settimana", Toast.LENGTH_LONG).show()
                                     return@TextButton
                                 }
-                                if (editedRecurrence != "Mai" && editedReminderTime == null && task.appointmentTime == null) {
+                                if (editedRecurrence != "Mai" && editedAppointmentTime == null) {
                                     Toast.makeText(context, "Una ripetizione richiede una data e un orario", Toast.LENGTH_LONG).show()
+                                    return@TextButton
+                                }
+                                val newRoutineSteps = editedRoutineSteps
+                                    .map { it.copy(title = it.title.trim()) }
+                                    .filter { it.title.isNotBlank() }
+                                if (task.routineSteps.isNotEmpty() && newRoutineSteps.isEmpty()) {
+                                    Toast.makeText(context, "La routine richiede almeno un passaggio", Toast.LENGTH_LONG).show()
                                     return@TextButton
                                 }
                                 val now = System.currentTimeMillis()
                                 val newAppointmentTime =
                                     editedAppointmentTime ?: task.appointmentTime
-                                val newReminderTime = editedReminderTime
+                                val newReminderTime = when (editedReminderMode) {
+                                    "Nessuno" -> null
+                                    "All’ora esatta" -> newAppointmentTime
+                                    else -> editedReminderTime
+                                }
                                 val appointmentChanged =
                                     newAppointmentTime != task.appointmentTime
                                 val reminderChanged =
@@ -2910,7 +3031,7 @@ fun FaccioIoApp(
                                     return@TextButton
                                 }
                                 if (
-                                    reminderChanged &&
+                                    editedReminderMode == "Personalizzato" &&
                                     newReminderTime != null &&
                                     (newReminderTime <= now ||
                                         (newAppointmentTime != null &&
@@ -2954,7 +3075,8 @@ fun FaccioIoApp(
                                         recurrence = editedRecurrence,
                                         recurrenceIntervalDays = recurrenceDays,
                                         recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
-                                        durationMinutes = durationMinutes
+                                        durationMinutes = durationMinutes,
+                                        routineSteps = if (task.routineSteps.isNotEmpty()) newRoutineSteps else task.routineSteps
                                     )
                                     saveTasks(context, tasks)
                                     editingIndex = null
