@@ -132,6 +132,7 @@ data class TaskItem(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val arrivalReminderId: String? = null,
+    val arrivalAlarmEnabled: Boolean = false,
     val departureTime: Long? = null,
     val departureTravelMinutes: Int? = null,
     val departureMarginMinutes: Int? = null,
@@ -219,6 +220,7 @@ fun FaccioIoApp(
     var taskReminderTiming by rememberSaveable { mutableStateOf("All’ora esatta") }
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var taskAlertType by rememberSaveable { mutableStateOf("Promemoria") }
+    var taskArrivalAlertType by rememberSaveable { mutableStateOf("Promemoria") }
     var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
     val taskRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var taskDuration by rememberSaveable { mutableStateOf("30 minuti") }
@@ -322,6 +324,7 @@ fun FaccioIoApp(
         durationMinutes: Int = 30,
         recurrenceWeekdays: List<Int> = emptyList(),
         alarmEnabled: Boolean = false,
+        arrivalAlarmEnabled: Boolean = false,
         appointmentTime: Long? = null
     ) {
         tasks.add(
@@ -336,6 +339,7 @@ fun FaccioIoApp(
                 latitude = place?.latitude,
                 longitude = place?.longitude,
                 arrivalReminderId = arrivalId,
+                arrivalAlarmEnabled = arrivalAlarmEnabled,
                 recurrence = recurrence,
                 recurrenceIntervalDays = recurrenceDays,
                 recurrenceWeekdays = recurrenceWeekdays,
@@ -360,6 +364,7 @@ fun FaccioIoApp(
         taskReminderTiming = "All’ora esatta"
         taskReminderTime = null
         taskAlertType = "Promemoria"
+        taskArrivalAlertType = "Promemoria"
         taskRecurrence = "Mai"
         taskRecurrenceWeekdays.clear()
         taskDuration = "30 minuti"
@@ -1345,6 +1350,24 @@ fun FaccioIoApp(
                                 "Non ho riconosciuto data, ora o descrizione. Controlla il testo dettato.",
                                 Toast.LENGTH_LONG
                             ).show()
+                        } else if (parsed.time == null && !parsed.location.isNullOrBlank()) {
+                            pendingTask = parsed.title
+                            pendingCategory = suggestAppointmentCategory(parsed.title)
+                            pendingPriority = suggestAppointmentPriority(parsed.title)
+                            taskReminderMode = "Quando arrivo"
+                            taskLocationQuery = parsed.location
+                            taskResolvedPlace = null
+                            taskPlaceMessage = "Ricerca del luogo in corso…"
+                            showAssistant = false
+                            showReminderChoice = true
+                            resolvePlace(context, parsed.location) { place ->
+                                taskResolvedPlace = place
+                                taskPlaceMessage = if (place == null) {
+                                    "Luogo non trovato: controlla l’indirizzo e riprova"
+                                } else {
+                                    "Luogo trovato: ${place.address}"
+                                }
+                            }
                         } else {
                             assistantListEnabled = suggestedListKind(parsed.title) != null
                             assistantResult = parsed
@@ -1783,6 +1806,7 @@ fun FaccioIoApp(
     }
 
     assistantResult?.let { appointment ->
+        val appointmentTime = appointment.time ?: return@let
         LaunchedEffect(appointment.time, appointment.title) {
             appointmentReminderOption = "All’ora esatta"
             customAppointmentReminderTime = null
@@ -1818,7 +1842,7 @@ fun FaccioIoApp(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("Attività: ${appointment.title}")
-                    Text("Quando: ${formatReminderTime(appointment.time)}")
+                    Text("Quando: ${formatReminderTime(appointmentTime)}")
                     Text(
                         "Luogo: ${resolvedPlace?.address ?: appointment.location ?: "non indicato"}"
                     )
@@ -1914,7 +1938,7 @@ fun FaccioIoApp(
                             if (place == null) {
                                 Toast.makeText(context, "Serve un luogo verificato", Toast.LENGTH_LONG).show()
                             } else {
-                                estimateDepartureFromCurrentLocation(context, appointment.time, place.latitude, place.longitude, departureTransport, departureSafety) {
+                                estimateDepartureFromCurrentLocation(context, appointmentTime, place.latitude, place.longitude, departureTransport, departureSafety) {
                                     departureEstimate = it
                                     if (it == null) Toast.makeText(context, "Concedi la posizione precisa e riprova", Toast.LENGTH_LONG).show()
                                 }
@@ -1963,7 +1987,7 @@ fun FaccioIoApp(
                         }
                     } else {
                         appointmentReminderTime(
-                            appointment.time,
+                            appointmentTime,
                             appointmentReminderOption,
                             null
                         )?.let { reminderTime ->
@@ -1980,7 +2004,7 @@ fun FaccioIoApp(
                 TextButton(
                     onClick = {
                         val reminderTime = appointmentReminderTime(
-                            appointment.time,
+                            appointmentTime,
                             appointmentReminderOption,
                             customAppointmentReminderTime
                         )
@@ -1998,7 +2022,7 @@ fun FaccioIoApp(
                         if (
                             reminderTime != null &&
                             (reminderTime <= System.currentTimeMillis() ||
-                                reminderTime > appointment.time)
+                                reminderTime > appointmentTime)
                         ) {
                             Toast.makeText(
                                 context,
@@ -2039,7 +2063,7 @@ fun FaccioIoApp(
                                         reminderTime = reminderTime,
                                         category = assistantCategory,
                                         priority = assistantPriority,
-                                        appointmentTime = appointment.time,
+                                        appointmentTime = appointmentTime,
                                         location = resolvedPlace?.address ?: appointment.location,
                                         latitude = resolvedPlace?.latitude,
                                         longitude = resolvedPlace?.longitude,
@@ -2068,7 +2092,7 @@ fun FaccioIoApp(
                         }
                         val conflict = findScheduleConflict(
                             tasks = tasks,
-                            proposedStart = appointment.time,
+                            proposedStart = appointmentTime,
                             proposedDurationMinutes = durationMinutes
                         )
                         if (conflict != null) {
@@ -2431,7 +2455,13 @@ fun FaccioIoApp(
                             )
                         }
                     }
-                    if (taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi") {
+                    Text("Luogo", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Se non imposti data e ora, il luogo attiva automaticamente “Quando arrivo”.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = FaccioMutedText
+                    )
+                    run {
                         OutlinedTextField(
                             value = taskLocationQuery,
                             onValueChange = { taskLocationQuery = it; taskResolvedPlace = null },
@@ -2455,6 +2485,26 @@ fun FaccioIoApp(
                                 Text("Controlla sulla mappa")
                             }
                         }
+                        if (
+                            taskReminderMode == "Quando arrivo" ||
+                            taskReminderMode == "Entrambi" ||
+                            (taskReminderMode == "Nessuno" && taskLocationQuery.isNotBlank())
+                        ) {
+                            SelectionMenu(
+                                label = "Avviso all’arrivo",
+                                selectedValue = taskArrivalAlertType,
+                                values = listOf("Promemoria", "Sveglia"),
+                                onValueSelected = { taskArrivalAlertType = it },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (taskArrivalAlertType == "Sveglia") {
+                                Text(
+                                    "All’arrivo partirà una sveglia con suono e vibrazione.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = FaccioMutedText
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -2463,7 +2513,9 @@ fun FaccioIoApp(
                     onClick = {
                         val needsTime = taskReminderMode == "Data e ora" ||
                             taskReminderMode == "Entrambi" || taskRecurrence != "Mai"
-                        val needsPlace = taskReminderMode == "Quando arrivo" || taskReminderMode == "Entrambi"
+                        val automaticArrival = taskReminderMode == "Nessuno" && taskLocationQuery.isNotBlank()
+                        val needsPlace = taskReminderMode == "Quando arrivo" ||
+                            taskReminderMode == "Entrambi" || automaticArrival
                         val recurrenceDays = 1
                         val durationMinutes = selectedDurationMinutes(taskDuration, taskCustomDuration)
                         if (durationMinutes !in 30..720 || durationMinutes % 30 != 0) {
@@ -2507,6 +2559,7 @@ fun FaccioIoApp(
                             return@TextButton
                         }
                         val alarmEnabled = needsTime && taskAlertType == "Sveglia"
+                        val arrivalAlarmEnabled = needsPlace && taskArrivalAlertType == "Sveglia"
                         val saveManualTask: () -> Unit = save@ {
                             if (
                                 needsTime &&
@@ -2539,6 +2592,7 @@ fun FaccioIoApp(
                                             durationMinutes,
                                             taskRecurrenceWeekdays.toList(),
                                             alarmEnabled,
+                                            arrivalAlarmEnabled,
                                             activityTime
                                         )
                                     } else {
@@ -2557,6 +2611,7 @@ fun FaccioIoApp(
                                     durationMinutes = durationMinutes,
                                     recurrenceWeekdays = taskRecurrenceWeekdays.toList(),
                                     alarmEnabled = alarmEnabled,
+                                    arrivalAlarmEnabled = false,
                                     appointmentTime = activityTime
                                 )
                             }
@@ -3932,6 +3987,7 @@ internal fun parseTasks(
                 longitude = if (item.isNull("longitude")) null else item.optDouble("longitude"),
                 arrivalReminderId = if (item.isNull("arrivalReminderId")) null
                     else item.optString("arrivalReminderId").takeIf { it.isNotBlank() },
+                arrivalAlarmEnabled = item.optBoolean("arrivalAlarmEnabled", false),
                 departureTime = if (item.isNull("departureTime")) null else item.optLong("departureTime"),
                 departureTravelMinutes = if (item.isNull("departureTravelMinutes")) null else item.optInt("departureTravelMinutes"),
                 departureMarginMinutes = if (item.isNull("departureMarginMinutes")) null else item.optInt("departureMarginMinutes"),
@@ -3999,6 +4055,7 @@ internal fun serializeTasks(tasks: List<TaskItem>): String {
                 put("latitude", task.latitude ?: JSONObject.NULL)
                 put("longitude", task.longitude ?: JSONObject.NULL)
                 put("arrivalReminderId", task.arrivalReminderId ?: JSONObject.NULL)
+                put("arrivalAlarmEnabled", task.arrivalAlarmEnabled)
                 put("departureTime", task.departureTime ?: JSONObject.NULL)
                 put("departureTravelMinutes", task.departureTravelMinutes ?: JSONObject.NULL)
                 put("departureMarginMinutes", task.departureMarginMinutes ?: JSONObject.NULL)
