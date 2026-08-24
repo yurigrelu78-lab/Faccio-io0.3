@@ -37,6 +37,17 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -494,6 +505,16 @@ fun FaccioIoApp(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
         OutlinedTextField(
             value = newTask,
             onValueChange = { newTask = it },
@@ -505,8 +526,6 @@ fun FaccioIoApp(
                 focusedLabelColor = FaccioTeal
             )
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -527,8 +546,6 @@ fun FaccioIoApp(
                 modifier = Modifier.weight(1f)
             )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -583,7 +600,11 @@ fun FaccioIoApp(
             ),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
         ) {
+            Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(4.dp))
             Text("Assistente IA")
+        }
+        }
         }
         }
 
@@ -598,25 +619,8 @@ fun FaccioIoApp(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            SelectionMenu(
-                label = "Categoria",
-                selectedValue = categoryFilter,
-                values = listOf("Tutte") + TASK_CATEGORIES,
-                onValueSelected = { categoryFilter = it },
-                modifier = Modifier.weight(1f)
-            )
-            SelectionMenu(
-                label = "Priorità",
-                selectedValue = priorityFilter,
-                values = listOf("Tutte") + TASK_PRIORITIES,
-                onValueSelected = { priorityFilter = it },
-                modifier = Modifier.weight(1f)
-            )
-        }
+        CategoryFilterRow(categoryFilter) { categoryFilter = it }
+        PriorityFilterRow(priorityFilter) { priorityFilter = it }
 
         if (categoryFilter != "Tutte" || priorityFilter != "Tutte") {
             TextButton(
@@ -659,7 +663,14 @@ fun FaccioIoApp(
                     border = BorderStroke(1.dp, taskCategoryColor(task.category).copy(alpha = 0.38f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    Box(
+                        modifier = Modifier
+                            .width(5.dp)
+                            .fillMaxHeight()
+                            .background(taskCategoryColor(task.category))
+                    )
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).weight(1f)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.Top
@@ -673,11 +684,11 @@ fun FaccioIoApp(
                                 colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
                             )
 
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 10.dp, start = 2.dp, end = 9.dp)
-                                    .size(9.dp)
-                                    .background(taskCategoryColor(task.category), RoundedCornerShape(50))
+                            Icon(
+                                imageVector = selectionIcon("Categoria", task.category) ?: Icons.Default.Person,
+                                contentDescription = task.category,
+                                tint = selectionColor("Categoria", task.category),
+                                modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 9.dp).size(21.dp)
                             )
 
                             Column(modifier = Modifier.weight(1f)) {
@@ -866,6 +877,8 @@ fun FaccioIoApp(
                                 ),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                             ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text("Modifica")
                             }
                             FilledTonalButton(
@@ -876,9 +889,12 @@ fun FaccioIoApp(
                                 ),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                             ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text("Elimina")
                             }
                         }
+                    }
                     }
                 }
             }
@@ -1159,7 +1175,8 @@ fun FaccioIoApp(
         }
         FaccioBottomBar(
             selected = mainSection,
-            onSelected = { mainSection = it }
+            onSelected = { mainSection = it },
+            onRoutine = { showRoutineTemplates = true }
         )
     }
 
@@ -3354,9 +3371,14 @@ private val FaccioMutedText: Color
 @Composable
 private fun FaccioBottomBar(
     selected: String,
-    onSelected: (String) -> Unit
+    onSelected: (String) -> Unit,
+    onRoutine: () -> Unit
 ) {
-    val items = listOf("Oggi", "Attività", "Strumenti")
+    val items = listOf(
+        Triple("Oggi", Icons.Default.DateRange, { onSelected("Oggi") }),
+        Triple("Routine", Icons.Default.CheckCircle, onRoutine),
+        Triple("Strumenti", Icons.Default.Build, { onSelected("Strumenti") })
+    )
     NavigationBar(
         modifier = Modifier
             .fillMaxWidth()
@@ -3364,16 +3386,11 @@ private fun FaccioBottomBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp
     ) {
-        items.forEach { item ->
+        items.forEach { (item, icon, action) ->
             NavigationBarItem(
                 selected = selected == item,
-                onClick = { onSelected(item) },
-                icon = {
-                    Text(
-                        if (selected == item) "●" else "○",
-                        color = if (selected == item) FaccioTeal else FaccioMutedText
-                    )
-                },
+                onClick = action,
+                icon = { Icon(icon, contentDescription = item) },
                 label = { Text(item) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = FaccioTeal,
@@ -3692,11 +3709,11 @@ private fun AgendaTaskCard(
                 modifier = Modifier.size(40.dp),
                 colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
             )
-            Box(
-                modifier = Modifier
-                    .padding(top = 8.dp, end = 9.dp)
-                    .size(9.dp)
-                    .background(categoryColor, RoundedCornerShape(50))
+            Icon(
+                imageVector = selectionIcon("Categoria", task.category) ?: Icons.Default.Person,
+                contentDescription = task.category,
+                tint = categoryColor,
+                modifier = Modifier.padding(top = 7.dp, end = 9.dp).size(21.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(task.title, fontWeight = FontWeight.SemiBold, color = FaccioNavy)
@@ -4336,6 +4353,8 @@ private fun SelectionMenu(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val icon = selectionIcon(label, selectedValue)
+    val iconColor = selectionColor(label, selectedValue)
 
     Box(modifier = modifier) {
         OutlinedButton(
@@ -4344,6 +4363,10 @@ private fun SelectionMenu(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
+            icon?.let {
+                Icon(it, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+            }
             Text("$label: $selectedValue", maxLines = 1)
         }
         DropdownMenu(
@@ -4353,12 +4376,82 @@ private fun SelectionMenu(
             values.forEach { value ->
                 DropdownMenuItem(
                     text = { Text(value) },
+                    leadingIcon = {
+                        selectionIcon(label, value)?.let {
+                            Icon(it, contentDescription = null, tint = selectionColor(label, value))
+                        }
+                    },
                     onClick = {
                         onValueSelected(value)
                         expanded = false
                     }
                 )
             }
+        }
+    }
+}
+
+private fun selectionIcon(label: String, value: String): ImageVector? = when {
+    label.contains("Categoria", ignoreCase = true) -> when (value) {
+        "Casa" -> Icons.Default.Home
+        "Lavoro" -> Icons.Default.Work
+        "Salute" -> Icons.Default.Favorite
+        "Personale" -> Icons.Default.Person
+        else -> null
+    }
+    label.contains("Priorità", ignoreCase = true) -> Icons.Default.Flag
+    else -> null
+}
+
+@Composable
+private fun selectionColor(label: String, value: String): Color = when {
+    label.contains("Categoria", ignoreCase = true) -> when (value) {
+        "Casa" -> Color(0xFF3978C5)
+        "Lavoro" -> Color(0xFF6E62B5)
+        "Salute" -> FaccioCoral
+        "Personale" -> FaccioTeal
+        else -> FaccioMutedText
+    }
+    label.contains("Priorità", ignoreCase = true) -> priorityColor(value)
+    else -> FaccioMutedText
+}
+
+@Composable
+private fun CategoryFilterRow(selected: String, onSelected: (String) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(listOf("Tutte") + TASK_CATEGORIES) { category ->
+            FilterChip(
+                selected = selected == category,
+                onClick = { onSelected(category) },
+                label = { Text(category) },
+                leadingIcon = selectionIcon("Categoria", category)?.let { icon ->
+                    { Icon(icon, contentDescription = null, tint = selectionColor("Categoria", category), modifier = Modifier.size(17.dp)) }
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun PriorityFilterRow(selected: String, onSelected: (String) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(listOf("Tutte") + TASK_PRIORITIES) { priority ->
+            FilterChip(
+                selected = selected == priority,
+                onClick = { onSelected(priority) },
+                label = { Text(priority) },
+                leadingIcon = if (priority == "Tutte") null else {
+                    { Icon(Icons.Default.Flag, contentDescription = null, tint = priorityColor(priority), modifier = Modifier.size(17.dp)) }
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            )
         }
     }
 }
