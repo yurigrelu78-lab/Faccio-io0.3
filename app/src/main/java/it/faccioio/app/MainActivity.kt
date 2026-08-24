@@ -401,7 +401,7 @@ fun FaccioIoApp(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -411,14 +411,14 @@ fun FaccioIoApp(
             Column {
                 Text(
                     text = "Faccio io",
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
                     color = FaccioNavy
                 )
                 Text(
                     text = "Oggi, un passo alla volta",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.labelMedium,
                     color = FaccioMutedText
                 )
             }
@@ -443,7 +443,7 @@ fun FaccioIoApp(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (mainSection == "Oggi") {
             TodayAgenda(
@@ -471,13 +471,12 @@ fun FaccioIoApp(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Start
         ) {
-            Text("Attività", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = FaccioNavy)
-            Text("${visibleTasks.size} visibili", style = MaterialTheme.typography.labelMedium, color = FaccioMutedText)
+            Text("Attività", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = FaccioNavy)
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(5.dp))
 
         if (showTaskSearch) {
             OutlinedTextField(
@@ -503,18 +502,18 @@ fun FaccioIoApp(
                 )
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
         }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
         OutlinedTextField(
             value = newTask,
@@ -609,19 +608,47 @@ fun FaccioIoApp(
         }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text(
-            text = "Le tue attività",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = FaccioNavy
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
-        CategoryFilterRow(categoryFilter) { categoryFilter = it }
-        PriorityFilterRow(priorityFilter) { priorityFilter = it }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Le tue attività",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = FaccioNavy
+            )
+            Text(
+                text = "${visibleTasks.size} visibili",
+                style = MaterialTheme.typography.labelSmall,
+                color = FaccioMutedText
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SelectionMenu(
+                label = "Categoria",
+                selectedValue = categoryFilter,
+                values = listOf("Tutte") + TASK_CATEGORIES,
+                onValueSelected = { categoryFilter = it },
+                modifier = Modifier.weight(1f)
+            )
+            SelectionMenu(
+                label = "Priorità",
+                selectedValue = priorityFilter,
+                values = listOf("Tutte") + TASK_PRIORITIES,
+                onValueSelected = { priorityFilter = it },
+                modifier = Modifier.weight(1f)
+            )
+        }
 
         if (categoryFilter != "Tutte" || priorityFilter != "Tutte") {
             TextButton(
@@ -635,7 +662,7 @@ fun FaccioIoApp(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -920,44 +947,6 @@ fun FaccioIoApp(
                 )
 
                 Spacer(modifier = Modifier.height(2.dp))
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                        Box(
-                            modifier = Modifier
-                                .width(5.dp)
-                                .fillMaxHeight()
-                                .background(FaccioTeal)
-                        )
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                "Routine",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = FaccioNavy
-                            )
-                            Text(
-                                "Scegli una sequenza pronta o crea la tua routine personale.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = FaccioMutedText
-                            )
-                            Button(
-                                onClick = { showRoutineTemplates = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
-                            ) { Text("Scegli una routine") }
-                        }
-                    }
-                }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
