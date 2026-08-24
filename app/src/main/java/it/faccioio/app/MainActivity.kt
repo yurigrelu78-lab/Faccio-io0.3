@@ -26,6 +26,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -387,19 +389,28 @@ fun FaccioIoApp(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(20.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Faccio io",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-            IconButton(
+            Column {
+                Text(
+                    text = "Faccio io",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold,
+                    color = FaccioNavy
+                )
+                Text(
+                    text = "Oggi, un passo alla volta",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FaccioMutedText
+                )
+            }
+            FilledTonalIconButton(
                 onClick = {
                     if (showTaskSearch) {
                         taskSearchQuery = ""
@@ -408,7 +419,11 @@ fun FaccioIoApp(
                         mainSection = "Attività"
                         showTaskSearch = true
                     }
-                }
+                },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = FaccioNavy
+                )
             ) {
                 Icon(
                     imageVector = if (showTaskSearch) Icons.Default.Close else Icons.Default.Search,
@@ -416,60 +431,7 @@ fun FaccioIoApp(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (mainSection == "Oggi") {
-                Button(
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) { Text("Oggi") }
-            } else {
-                OutlinedButton(
-                    onClick = { mainSection = "Oggi" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) { Text("Oggi") }
-            }
-            if (mainSection == "Attività") {
-                Button(
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) { Text("Attività") }
-            } else {
-                OutlinedButton(
-                    onClick = { mainSection = "Attività" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) { Text("Attività") }
-            }
-            if (mainSection == "Strumenti") {
-                Button(
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) { Text("Strumenti") }
-            } else {
-                OutlinedButton(
-                    onClick = { mainSection = "Strumenti" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioNavy),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) { Text("Strumenti") }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         if (mainSection == "Oggi") {
             TodayAgenda(
@@ -612,10 +574,13 @@ fun FaccioIoApp(
             Text("Aggiungi")
         }
 
-        OutlinedButton(
+        Button(
             onClick = { showAssistant = true },
             modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = FaccioTeal),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = FaccioTeal,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            ),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Text("Assistente IA")
@@ -689,8 +654,10 @@ fun FaccioIoApp(
                 val task = indexedTask.value
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, taskCategoryColor(task.category).copy(alpha = 0.38f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                         Row(
@@ -867,7 +834,7 @@ fun FaccioIoApp(
                         Row(
                             modifier = Modifier.align(Alignment.End)
                         ) {
-                            TextButton(
+                            FilledTonalButton(
                                 onClick = {
                                     editingIndex = index
                                     editedTitle = task.title
@@ -893,15 +860,23 @@ fun FaccioIoApp(
                                     editedDuration = durationOption(task.durationMinutes)
                                     editedCustomDuration = task.durationMinutes.toString()
                                 },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = FaccioTeal
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                             ) {
-                                Text("Modifica", color = FaccioTeal)
+                                Text("Modifica")
                             }
-                            TextButton(
+                            FilledTonalButton(
                                 onClick = { deletingIndex = index },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = FaccioCoral
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                             ) {
-                                Text("Elimina", color = FaccioCoral)
+                                Text("Elimina")
                             }
                         }
                     }
@@ -1182,6 +1157,10 @@ fun FaccioIoApp(
                 Spacer(modifier = Modifier.height(4.dp))
             }
         }
+        FaccioBottomBar(
+            selected = mainSection,
+            onSelected = { mainSection = it }
+        )
     }
 
     if (showHelpGuide) {
@@ -3363,12 +3342,50 @@ private val FaccioNavy: Color
     @Composable get() = MaterialTheme.colorScheme.onSurface
 private val FaccioTeal: Color
     @Composable get() = MaterialTheme.colorScheme.secondary
-private val FaccioCoral = Color(0xFFE57868)
-private val FaccioAmber = Color(0xFFF1AD43)
+private val FaccioCoral: Color
+    @Composable get() = MaterialTheme.colorScheme.error
+private val FaccioAmber: Color
+    @Composable get() = MaterialTheme.colorScheme.tertiary
 private val FaccioCard: Color
     @Composable get() = MaterialTheme.colorScheme.surfaceVariant
 private val FaccioMutedText: Color
     @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+@Composable
+private fun FaccioBottomBar(
+    selected: String,
+    onSelected: (String) -> Unit
+) {
+    val items = listOf("Oggi", "Attività", "Strumenti")
+    NavigationBar(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp
+    ) {
+        items.forEach { item ->
+            NavigationBarItem(
+                selected = selected == item,
+                onClick = { onSelected(item) },
+                icon = {
+                    Text(
+                        if (selected == item) "●" else "○",
+                        color = if (selected == item) FaccioTeal else FaccioMutedText
+                    )
+                },
+                label = { Text(item) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = FaccioTeal,
+                    selectedTextColor = FaccioTeal,
+                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    unselectedIconColor = FaccioMutedText,
+                    unselectedTextColor = FaccioMutedText
+                )
+            )
+        }
+    }
+}
 
 private fun suggestedListKind(title: String): String? {
     val text = title.lowercase(Locale.ITALIAN)
