@@ -55,6 +55,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -204,11 +209,17 @@ fun FaccioIoApp(
         capitalization = KeyboardCapitalization.Sentences,
         imeAction = ImeAction.Done
     )
+    val dismissKeyboard = {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+    }
     val dismissKeyboardActions = KeyboardActions(
-        onDone = {
-            keyboardController?.hide()
-            focusManager.clearFocus(force = true)
-        }
+        onDone = { dismissKeyboard() },
+        onGo = { dismissKeyboard() },
+        onNext = { dismissKeyboard() },
+        onPrevious = { dismissKeyboard() },
+        onSearch = { dismissKeyboard() },
+        onSend = { dismissKeyboard() }
     )
     var newTask by rememberSaveable { mutableStateOf("") }
     var pendingTask by rememberSaveable { mutableStateOf("") }
@@ -1809,13 +1820,25 @@ fun FaccioIoApp(
                 ) {
                     OutlinedTextField(
                         value = customRoutineName,
-                        onValueChange = { customRoutineName = it },
+                        onValueChange = { value ->
+                            customRoutineName = value.replace("\n", "")
+                            if ('\n' in value) dismissKeyboard()
+                        },
                         label = { Text("Nome della routine") },
                         placeholder = { Text("Es. Prepararmi per il lavoro") },
                         singleLine = true,
                         keyboardOptions = sentenceKeyboardOptions,
                         keyboardActions = dismissKeyboardActions,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onPreviewKeyEvent { event ->
+                                if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                    dismissKeyboard()
+                                    true
+                                } else {
+                                    false
+                                }
+                            },
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = FaccioTeal,
