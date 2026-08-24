@@ -246,6 +246,7 @@ fun FaccioIoApp(
     var conflictToConfirm by remember { mutableStateOf<ScheduleConflict?>(null) }
     var pendingConflictAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
+    var editingRoutineTemplateIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var customRoutineName by rememberSaveable { mutableStateOf("") }
     var customRoutineCategory by rememberSaveable { mutableStateOf("Personale") }
     var customRoutinePriority by rememberSaveable { mutableStateOf("Media") }
@@ -1494,7 +1495,7 @@ fun FaccioIoApp(
                                         pendingPriority = template.priority
                                         pendingRoutineSteps = template.routineSteps
                                         taskDuration = durationOption(template.durationMinutes)
-                                        taskCustomDuration = template.durationMinutes.toString()
+                                        taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
                                         showRoutineTemplates = false
                                         showReminderChoice = true
                                     },
@@ -1502,6 +1503,19 @@ fun FaccioIoApp(
                                     shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
                                 ) { Text("Usa questa routine") }
+                                TextButton(
+                                    onClick = {
+                                        editingRoutineTemplateIndex = null
+                                        customRoutineName = "${template.title} personalizzata"
+                                        customRoutineCategory = template.category
+                                        customRoutinePriority = template.priority
+                                        customRoutineSteps.clear()
+                                        customRoutineSteps.addAll(template.routineSteps.map { it.title })
+                                        showRoutineTemplates = false
+                                        showCustomRoutineEditor = true
+                                    },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = FaccioTeal)
+                                ) { Text("Personalizza") }
                             }
                         }
                     }
@@ -1548,7 +1562,7 @@ fun FaccioIoApp(
                                             pendingPriority = template.priority
                                             pendingRoutineSteps = template.routineSteps
                                             taskDuration = durationOption(template.durationMinutes)
-                                            taskCustomDuration = template.durationMinutes.toString()
+                                            taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
                                             showRoutineTemplates = false
                                             showReminderChoice = true
                                         },
@@ -1556,6 +1570,27 @@ fun FaccioIoApp(
                                         shape = RoundedCornerShape(10.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)
                                     ) { Text("Usa") }
+                                    TextButton(
+                                        onClick = {
+                                            val index = customRoutineTemplates.indexOf(template)
+                                            if (index >= 0) {
+                                                editingRoutineTemplateIndex = index
+                                                customRoutineName = template.title
+                                                customRoutineCategory = template.category
+                                                customRoutinePriority = template.priority
+                                                customRoutineSteps.clear()
+                                                customRoutineSteps.addAll(
+                                                    template.routineSteps.map { it.title }
+                                                )
+                                                showRoutineTemplates = false
+                                                showCustomRoutineEditor = true
+                                            }
+                                        },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = FaccioTeal
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) { Text("Modifica") }
                                     TextButton(
                                         onClick = {
                                             customRoutineTemplates.remove(template)
@@ -1576,6 +1611,7 @@ fun FaccioIoApp(
 
                     OutlinedButton(
                         onClick = {
+                            editingRoutineTemplateIndex = null
                             customRoutineName = ""
                             customRoutineCategory = "Personale"
                             customRoutinePriority = "Media"
@@ -1627,12 +1663,16 @@ fun FaccioIoApp(
                     )
                     Column {
                         Text(
-                            "Nuova routine",
+                            if (editingRoutineTemplateIndex == null) "Nuova routine" else "Modifica routine",
                             fontWeight = FontWeight.Bold,
                             color = FaccioNavy
                         )
                         Text(
-                            "Costruiscila un passaggio alla volta",
+                            if (editingRoutineTemplateIndex == null) {
+                                "Costruiscila un passaggio alla volta"
+                            } else {
+                                "Aggiorna nome, passaggi e ordine"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = FaccioMutedText
                         )
@@ -1717,6 +1757,28 @@ fun FaccioIoApp(
                             )
                             TextButton(
                                 onClick = {
+                                    if (index > 0) {
+                                        val previous = customRoutineSteps[index - 1]
+                                        customRoutineSteps[index - 1] = customRoutineSteps[index]
+                                        customRoutineSteps[index] = previous
+                                    }
+                                },
+                                enabled = index > 0,
+                                contentPadding = PaddingValues(horizontal = 2.dp)
+                            ) { Text("↑") }
+                            TextButton(
+                                onClick = {
+                                    if (index < customRoutineSteps.lastIndex) {
+                                        val next = customRoutineSteps[index + 1]
+                                        customRoutineSteps[index + 1] = customRoutineSteps[index]
+                                        customRoutineSteps[index] = next
+                                    }
+                                },
+                                enabled = index < customRoutineSteps.lastIndex,
+                                contentPadding = PaddingValues(horizontal = 2.dp)
+                            ) { Text("↓") }
+                            TextButton(
+                                onClick = {
                                     if (customRoutineSteps.size > 1) {
                                         customRoutineSteps.removeAt(index)
                                     } else {
@@ -1763,9 +1825,15 @@ fun FaccioIoApp(
                             ).show()
                             return@Button
                         }
-                        if ((routineTemplates() + customRoutineTemplates).any {
-                                it.title.equals(name, ignoreCase = true)
-                            }) {
+                        val editingIndex = editingRoutineTemplateIndex
+                        val duplicateBuiltIn = routineTemplates().any {
+                            it.title.equals(name, ignoreCase = true)
+                        }
+                        val duplicateCustom = customRoutineTemplates.withIndex().any {
+                            it.index != editingIndex &&
+                                it.value.title.equals(name, ignoreCase = true)
+                        }
+                        if (duplicateBuiltIn || duplicateCustom) {
                             Toast.makeText(
                                 context,
                                 "Esiste già una routine con questo nome",
@@ -1777,24 +1845,43 @@ fun FaccioIoApp(
                             title = name,
                             category = customRoutineCategory,
                             priority = customRoutinePriority,
-                            durationMinutes = (steps.size * 5).coerceAtLeast(10),
+                            durationMinutes = (steps.size * 5).coerceIn(30, 720),
                             routineSteps = steps.map { RoutineStep(it) }
                         )
-                        customRoutineTemplates.add(template)
+                        if (editingIndex != null && editingIndex in customRoutineTemplates.indices) {
+                            customRoutineTemplates[editingIndex] = template
+                        } else {
+                            customRoutineTemplates.add(template)
+                        }
                         saveCustomRoutineTemplates(context, customRoutineTemplates)
+                        if (editingIndex != null) {
+                            editingRoutineTemplateIndex = null
+                            showCustomRoutineEditor = false
+                            showRoutineTemplates = true
+                            Toast.makeText(context, "Routine aggiornata", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
                         pendingTask = template.title
                         pendingCategory = template.category
                         pendingPriority = template.priority
                         pendingRoutineSteps = template.routineSteps
                         taskDuration = durationOption(template.durationMinutes)
-                        taskCustomDuration = template.durationMinutes.toString()
+                        taskCustomDuration = template.durationMinutes.coerceAtLeast(30).toString()
                         showCustomRoutineEditor = false
                         showReminderChoice = true
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
-                ) { Text("Salva e configura") }
+                ) {
+                    Text(
+                        if (editingRoutineTemplateIndex == null) {
+                            "Salva e configura"
+                        } else {
+                            "Salva modifiche"
+                        }
+                    )
+                }
             },
             dismissButton = {
                 TextButton(
