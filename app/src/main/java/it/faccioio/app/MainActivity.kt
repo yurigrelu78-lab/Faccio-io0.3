@@ -27,6 +27,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
@@ -3635,6 +3636,28 @@ private fun TodayAgenda(
     val completedCount = todayTasks.count { it.completed }
     val progress = if (todayTasks.isEmpty()) 0f else completedCount.toFloat() / todayTasks.size
     val dayCompleted = todayTasks.isNotEmpty() && todayTasks.all { it.completed }
+    var completionCardVisible by remember { mutableStateOf(dayCompleted) }
+    var completionMarkVisible by remember { mutableStateOf(dayCompleted) }
+    var previousDayCompleted by remember { mutableStateOf(dayCompleted) }
+
+    LaunchedEffect(dayCompleted) {
+        if (dayCompleted && !previousDayCompleted) {
+            completionCardVisible = false
+            completionMarkVisible = false
+            kotlinx.coroutines.delay(180)
+            completionCardVisible = true
+            kotlinx.coroutines.delay(620)
+            completionMarkVisible = true
+        } else if (dayCompleted) {
+            completionCardVisible = true
+            completionMarkVisible = true
+        } else {
+            completionCardVisible = false
+            completionMarkVisible = false
+        }
+        previousDayCompleted = dayCompleted
+    }
+
     val routeCandidates = (scheduled.map { it.task } + unscheduled.map { it.second })
         .distinct()
         .filter { it.latitude != null && it.longitude != null && !it.completed }
@@ -3716,9 +3739,12 @@ private fun TodayAgenda(
         if (dayCompleted) {
             item {
                 AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn(animationSpec = tween(700)) +
-                        scaleIn(initialScale = 0.86f, animationSpec = tween(900))
+                    visible = completionCardVisible,
+                    enter = fadeIn(animationSpec = tween(650)) +
+                        slideInVertically(
+                            initialOffsetY = { height -> height / 4 },
+                            animationSpec = tween(700)
+                        )
                 ) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -3734,19 +3760,28 @@ private fun TodayAgenda(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Surface(
-                                modifier = Modifier.size(112.dp),
-                                shape = RoundedCornerShape(56.dp),
-                                color = FaccioTeal.copy(alpha = 0.12f),
-                                border = BorderStroke(2.dp, FaccioTeal.copy(alpha = 0.75f))
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = FaccioTeal,
-                                        modifier = Modifier.size(72.dp)
+                            AnimatedVisibility(
+                                visible = completionMarkVisible,
+                                enter = fadeIn(animationSpec = tween(350)) +
+                                    scaleIn(
+                                        initialScale = 0.35f,
+                                        animationSpec = tween(600)
                                     )
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(112.dp),
+                                    shape = RoundedCornerShape(56.dp),
+                                    color = FaccioTeal.copy(alpha = 0.12f),
+                                    border = BorderStroke(2.dp, FaccioTeal.copy(alpha = 0.75f))
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = FaccioTeal,
+                                            modifier = Modifier.size(72.dp)
+                                        )
+                                    }
                                 }
                             }
                             Text(
