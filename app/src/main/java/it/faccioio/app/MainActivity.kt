@@ -24,6 +24,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -3626,11 +3630,11 @@ private fun TodayAgenda(
             } else emptyList()
         }
     }.toSet()
-    val totalMinutes = scheduled.sumOf { it.task.durationMinutes } +
-        unscheduled.sumOf { it.second.durationMinutes }
-    val todayTasks = scheduled.map { it.task } + unscheduled.map { it.second }
+    val todayTasks = scheduled.map { it.task }
+    val totalMinutes = todayTasks.sumOf { it.durationMinutes }
     val completedCount = todayTasks.count { it.completed }
     val progress = if (todayTasks.isEmpty()) 0f else completedCount.toFloat() / todayTasks.size
+    val dayCompleted = todayTasks.isNotEmpty() && todayTasks.all { it.completed }
     val routeCandidates = (scheduled.map { it.task } + unscheduled.map { it.second })
         .distinct()
         .filter { it.latitude != null && it.longitude != null && !it.completed }
@@ -3670,39 +3674,95 @@ private fun TodayAgenda(
             }
         }
 
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = FaccioCard)
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+        if (scheduled.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = FaccioCard)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("La tua giornata", fontWeight = FontWeight.Bold, color = FaccioNavy)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("La tua giornata", fontWeight = FontWeight.Bold, color = FaccioNavy)
+                            Text(
+                                "$completedCount/${todayTasks.size} completate",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = FaccioMutedText
+                            )
+                        }
                         Text(
-                            "$completedCount/${todayTasks.size} completate",
-                            style = MaterialTheme.typography.labelMedium,
+                            "${todayTasks.size} attività · ${formatDuration(totalMinutes)}",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = FaccioMutedText
                         )
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(5.dp),
+                            color = FaccioTeal,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     }
-                    Text(
-                        "${todayTasks.size} attività · ${formatDuration(totalMinutes)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = FaccioMutedText
-                    )
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth().height(5.dp),
-                        color = FaccioTeal,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                }
+            }
+        }
+
+        if (dayCompleted) {
+            item {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(animationSpec = tween(700)) +
+                        scaleIn(initialScale = 0.86f, animationSpec = tween(900))
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(112.dp),
+                                shape = RoundedCornerShape(56.dp),
+                                color = FaccioTeal.copy(alpha = 0.12f),
+                                border = BorderStroke(2.dp, FaccioTeal.copy(alpha = 0.75f))
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = FaccioTeal,
+                                        modifier = Modifier.size(72.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                "Tutto fatto per oggi",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = FaccioNavy
+                            )
+                            Text(
+                                "Non hai più impegni programmati per oggi.\nAdesso puoi pensare al resto.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FaccioMutedText,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
         }
