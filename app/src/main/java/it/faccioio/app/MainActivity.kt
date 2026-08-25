@@ -369,6 +369,62 @@ fun FaccioIoApp(
         taskPlaceMessage = ""
     }
 
+    fun resetManualTaskDraft() {
+        newTask = ""
+        pendingTask = ""
+        selectedCategory = "Personale"
+        selectedPriority = "Media"
+        pendingCategory = "Personale"
+        pendingPriority = "Media"
+        pendingRoutineSteps = emptyList()
+        pendingHasShoppingList = false
+        pendingListSuggestionKind = null
+        showShoppingSuggestion = false
+        showReminderChoice = false
+        taskReminderMode = "Nessuno"
+        taskActivityTime = null
+        taskReminderTiming = "All’ora esatta"
+        taskReminderTime = null
+        taskAlertType = "Promemoria"
+        taskRecurrence = "Mai"
+        taskRecurrenceWeekdays.clear()
+        taskDuration = "30 minuti"
+        taskCustomDuration = "30"
+        taskLocationQuery = ""
+        taskResolvedPlace = null
+        taskPlaceMessage = ""
+        departureTransport = "Auto"
+        departureSafety = "Normale"
+        departureEstimate = null
+    }
+
+    fun resetAssistantDraft() {
+        showAssistant = false
+        assistantText = ""
+        assistantResult = null
+        resolvedPlace = null
+        placeLookupMessage = ""
+        appointmentReminderOption = "All’ora esatta"
+        customAppointmentReminderTime = null
+        assistantCategory = "Personale"
+        assistantPriority = "Media"
+        assistantDuration = "30 minuti"
+        assistantCustomDuration = "30"
+        assistantListEnabled = false
+        departureTransport = "Auto"
+        departureSafety = "Normale"
+        departureEstimate = null
+    }
+
+    fun resetCustomRoutineDraft() {
+        showCustomRoutineEditor = false
+        customRoutineName = ""
+        customRoutineCategory = "Personale"
+        customRoutinePriority = "Media"
+        customRoutineSteps.clear()
+        customRoutineSteps.add("")
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1246,7 +1302,7 @@ fun FaccioIoApp(
 
     if (showAssistant) {
         AlertDialog(
-            onDismissRequest = { showAssistant = false },
+            onDismissRequest = { resetAssistantDraft() },
             shape = RoundedCornerShape(20.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
@@ -1358,7 +1414,7 @@ fun FaccioIoApp(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showAssistant = false },
+                    onClick = { resetAssistantDraft() },
                     colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
                 ) { Text("Annulla") }
             }
@@ -1586,7 +1642,7 @@ fun FaccioIoApp(
 
     if (showCustomRoutineEditor) {
         AlertDialog(
-            onDismissRequest = { showCustomRoutineEditor = false },
+            onDismissRequest = { resetCustomRoutineDraft() },
             shape = RoundedCornerShape(20.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
@@ -1775,7 +1831,7 @@ fun FaccioIoApp(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showCustomRoutineEditor = false },
+                    onClick = { resetCustomRoutineDraft() },
                     colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
                 ) { Text("Annulla") }
             }
@@ -1810,7 +1866,7 @@ fun FaccioIoApp(
         }
 
         AlertDialog(
-            onDismissRequest = { assistantResult = null },
+            onDismissRequest = { resetAssistantDraft() },
             title = { Text("Conferma appuntamento") },
             text = {
                 Column(
@@ -2081,7 +2137,7 @@ fun FaccioIoApp(
                 ) { Text("Salva appuntamento") }
             },
             dismissButton = {
-                TextButton(onClick = { assistantResult = null }) {
+                TextButton(onClick = { resetAssistantDraft() }) {
                     Text("Annulla")
                 }
             }
@@ -2314,7 +2370,7 @@ fun FaccioIoApp(
 
     if (showReminderChoice) {
         AlertDialog(
-            onDismissRequest = { showReminderChoice = false },
+            onDismissRequest = { resetManualTaskDraft() },
             title = { Text("Come vuoi essere avvisato?") },
             text = {
                 Column(
@@ -2578,7 +2634,7 @@ fun FaccioIoApp(
                 ) { Text("Salva attività") }
             },
             dismissButton = {
-                TextButton(onClick = { showReminderChoice = false }) { Text("Annulla") }
+                TextButton(onClick = { resetManualTaskDraft() }) { Text("Annulla") }
             }
         )
     }
