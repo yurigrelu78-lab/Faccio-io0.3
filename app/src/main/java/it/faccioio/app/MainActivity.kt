@@ -3638,22 +3638,28 @@ private fun TodayAgenda(
     val dayCompleted = todayTasks.isNotEmpty() && todayTasks.all { it.completed }
     var completionCardVisible by remember { mutableStateOf(dayCompleted) }
     var completionMarkVisible by remember { mutableStateOf(dayCompleted) }
+    var completionCopyVisible by remember { mutableStateOf(dayCompleted) }
     var previousDayCompleted by remember { mutableStateOf(dayCompleted) }
 
     LaunchedEffect(dayCompleted) {
         if (dayCompleted && !previousDayCompleted) {
             completionCardVisible = false
             completionMarkVisible = false
+            completionCopyVisible = false
             kotlinx.coroutines.delay(180)
             completionCardVisible = true
             kotlinx.coroutines.delay(620)
             completionMarkVisible = true
+            kotlinx.coroutines.delay(520)
+            completionCopyVisible = true
         } else if (dayCompleted) {
             completionCardVisible = true
             completionMarkVisible = true
+            completionCopyVisible = true
         } else {
             completionCardVisible = false
             completionMarkVisible = false
+            completionCopyVisible = false
         }
         previousDayCompleted = dayCompleted
     }
@@ -3784,18 +3790,32 @@ private fun TodayAgenda(
                                     }
                                 }
                             }
-                            Text(
-                                "Tutto fatto per oggi",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = FaccioNavy
-                            )
-                            Text(
-                                "Non hai più impegni programmati per oggi.\nAdesso puoi pensare al resto.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = FaccioMutedText,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
+                            AnimatedVisibility(
+                                visible = completionCopyVisible,
+                                enter = fadeIn(animationSpec = tween(450)) +
+                                    slideInVertically(
+                                        initialOffsetY = { height -> height / 3 },
+                                        animationSpec = tween(450)
+                                    )
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        "Tutto fatto",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = FaccioNavy
+                                    )
+                                    Text(
+                                        "Non hai più impegni programmati per oggi.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = FaccioMutedText,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
                         }
                     }
                 }
