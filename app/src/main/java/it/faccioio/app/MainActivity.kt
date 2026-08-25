@@ -263,6 +263,7 @@ fun FaccioIoApp(
     var departureSafety by rememberSaveable { mutableStateOf("Normale") }
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
     var mainSection by rememberSaveable { mutableStateOf("Oggi") }
+    var dayCompletionSignal by rememberSaveable { mutableStateOf(0) }
     var showTaskSearch by rememberSaveable { mutableStateOf(false) }
     var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
@@ -528,11 +529,24 @@ fun FaccioIoApp(
         if (mainSection == "Oggi") {
             TodayAgenda(
                 tasks = tasks,
+                completionSignal = dayCompletionSignal,
                 onCompletedChange = { index, completed ->
+                    val completesDay = completed &&
+                        isLastPendingScheduledTaskForToday(tasks, index)
                     updateTaskCompletion(context, tasks, index, completed)
+                    if (completesDay) dayCompletionSignal++
                 },
                 onStepChange = { index, stepIndex, completed ->
+                    val task = tasks.getOrNull(index)
+                    val completesRoutine = completed &&
+                        task != null &&
+                        task.routineSteps.mapIndexed { currentIndex, step ->
+                            if (currentIndex == stepIndex) true else step.completed
+                        }.all { it }
+                    val completesDay = completesRoutine &&
+                        isLastPendingScheduledTaskForToday(tasks, index)
                     updateRoutineStep(context, tasks, index, stepIndex, completed)
+                    if (completesDay) dayCompletionSignal++
                 },
                 onOpenMap = { task ->
                     openPlaceOnMap(
@@ -3595,6 +3609,7 @@ private fun GuideTopic(title: String, description: String) {
 @Composable
 private fun TodayAgenda(
     tasks: List<TaskItem>,
+    completionSignal: Int,
     onCompletedChange: (Int, Boolean) -> Unit,
     onStepChange: (Int, Int, Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit,
@@ -3635,7 +3650,9 @@ private fun TodayAgenda(
     val totalMinutes = todayTasks.sumOf { it.durationMinutes }
     val completedCount = todayTasks.count { it.completed }
     val progress = if (todayTasks.isEmpty()) 0f else completedCount.toFloat() / todayTasks.size
-    val dayCompleted = todayTasks.isNotEmpty() && todayTasks.all { it.completed }
+    val dayCompleted =
+        (todayTasks.isNotEmpty() && todayTasks.all { it.completed }) ||
+            (completionSignal > 0 && todayTasks.none { !it.completed })
     var completionCardVisible by remember { mutableStateOf(dayCompleted) }
     var completionMarkVisible by remember { mutableStateOf(dayCompleted) }
     var completionCopyVisible by remember { mutableStateOf(dayCompleted) }
@@ -3901,7 +3918,7 @@ private fun TodayAgenda(
             }
         }
 
-        if (scheduled.isEmpty() && unscheduled.isEmpty()) {
+        if (scheduled.isEmpty() && unscheduled.isEmpty() && !dayCompleted) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp)) {
@@ -4189,6 +4206,27 @@ private fun recurrenceLabel(task: TaskItem): String = when (task.recurrence) {
     }
     "Mai" -> ""
     else -> "Si ripete: ${task.recurrence.lowercase(Locale.ITALIAN)}"
+}
+
+
+private fun isLastPendingScheduledTaskForToday(
+    tasks: List<TaskItem>,
+    completingIndex: Int,
+    now: Long = System.currentTimeMillis()
+): Boolean {
+    val completingTask = tasks.getOrNull(completingIndex) ?: return false
+    val completingTime = completingTask.appointmentTime ?: completingTask.reminderTime
+        ?: return false
+    if (!isSameDay(completingTime, now)) return false
+
+    return tasks.withIndex().none { (index, task) ->
+        if (index == completingIndex || task.completed) {
+            false
+        } else {
+            val time = task.appointmentTime ?: task.reminderTime
+            time != null && isSameDay(time, now)
+        }
+    }
 }
 
 private fun updateTaskCompletion(
