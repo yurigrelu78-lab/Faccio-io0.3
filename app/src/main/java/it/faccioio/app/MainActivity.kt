@@ -186,7 +186,14 @@ internal const val TASK_PREFS = "faccio_io_tasks"
 internal const val TASKS_KEY = "saved_tasks"
 private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
-private val TASK_RECURRENCES = listOf("Mai", "Ogni giorno", "Ogni settimana", "Ogni mese", "Personalizzata")
+private val TASK_RECURRENCES = listOf(
+    "Mai",
+    "Ogni giorno",
+    "Ogni settimana",
+    "Ogni mese",
+    "Ogni anno",
+    "Personalizzata"
+)
 private val APPOINTMENT_REMINDER_OPTIONS = listOf(
     "All’ora esatta",
     "24 ore prima",
@@ -244,6 +251,9 @@ fun FaccioIoApp(
     }
     var assistantCategory by rememberSaveable { mutableStateOf("Personale") }
     var assistantPriority by rememberSaveable { mutableStateOf("Media") }
+    var assistantAlertType by rememberSaveable { mutableStateOf("Promemoria") }
+    var assistantRecurrence by rememberSaveable { mutableStateOf("Mai") }
+    val assistantRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var assistantDuration by rememberSaveable { mutableStateOf("30 minuti") }
     var assistantCustomDuration by rememberSaveable { mutableStateOf("30") }
     var taskReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
@@ -454,6 +464,9 @@ fun FaccioIoApp(
         customAppointmentReminderTime = null
         assistantCategory = "Personale"
         assistantPriority = "Media"
+        assistantAlertType = "Promemoria"
+        assistantRecurrence = "Mai"
+        assistantRecurrenceWeekdays.clear()
         assistantDuration = "30 minuti"
         assistantCustomDuration = "30"
         assistantListEnabled = false
@@ -2264,6 +2277,9 @@ fun FaccioIoApp(
             customAppointmentReminderTime = null
             assistantCategory = suggestAppointmentCategory(appointment.title)
             assistantPriority = suggestAppointmentPriority(appointment.title)
+            assistantAlertType = "Promemoria"
+            assistantRecurrence = suggestAppointmentRecurrence(appointment.title)
+            assistantRecurrenceWeekdays.clear()
             departureEstimate = null
         }
 
@@ -2411,7 +2427,7 @@ fun FaccioIoApp(
                         )
                     }
                     SelectionMenu(
-                        label = "Promemoria",
+                        label = "Quando avvisare",
                         selectedValue = appointmentReminderOption,
                         values = APPOINTMENT_REMINDER_OPTIONS,
                         onValueSelected = {
@@ -2433,7 +2449,7 @@ fun FaccioIoApp(
                         ) {
                             Text(
                                 customAppointmentReminderTime?.let {
-                                    "Promemoria: ${formatReminderTime(it)}"
+                                    "Avviso: ${formatReminderTime(it)}"
                                 } ?: "Scegli data e ora"
                             )
                         }
@@ -2444,10 +2460,51 @@ fun FaccioIoApp(
                             null
                         )?.let { reminderTime ->
                             Text(
-                                "Il promemoria arriverà: ${formatReminderTime(reminderTime)}",
+                                "L’avviso arriverà: ${formatReminderTime(reminderTime)}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
+                    }
+                    if (appointmentReminderOption != "Nessun promemoria") {
+                        SelectionMenu(
+                            label = "Tipo di avviso",
+                            selectedValue = assistantAlertType,
+                            values = listOf("Promemoria", "Sveglia"),
+                            onValueSelected = { assistantAlertType = it },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (assistantAlertType == "Sveglia") {
+                            Text(
+                                "La sveglia continuerà a suonare finché non la spegni o la rimandi.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FaccioMutedText
+                            )
+                        }
+                    }
+                    SelectionMenu(
+                        label = "Ripetizione",
+                        selectedValue = assistantRecurrence,
+                        values = TASK_RECURRENCES,
+                        onValueSelected = { assistantRecurrence = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (assistantRecurrence == "Personalizzata") {
+                        Text(
+                            "Scegli i giorni",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = FaccioNavy
+                        )
+                        WeekdaySelector(
+                            selectedDays = assistantRecurrenceWeekdays,
+                            onToggle = { day ->
+                                if (day in assistantRecurrenceWeekdays) {
+                                    assistantRecurrenceWeekdays.remove(day)
+                                } else {
+                                    assistantRecurrenceWeekdays.add(day)
+                                }
+                            }
+                        )
                     }
                     Text("Controlla i dati prima di salvare.")
                 }
@@ -2492,6 +2549,17 @@ fun FaccioIoApp(
                             Toast.makeText(context, "Scegli una durata da 0,5 a 12 ore in intervalli di mezz’ora", Toast.LENGTH_LONG).show()
                             return@TextButton
                         }
+                        if (
+                            assistantRecurrence == "Personalizzata" &&
+                            assistantRecurrenceWeekdays.isEmpty()
+                        ) {
+                            Toast.makeText(
+                                context,
+                                "Seleziona almeno un giorno della settimana",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@TextButton
+                        }
                         if (departure != null && departure.departureTime <= System.currentTimeMillis()) {
                             Toast.makeText(context, "La partenza consigliata è già trascorsa: ricalcola o modifica l’appuntamento", Toast.LENGTH_LONG).show()
                             return@TextButton
@@ -2506,7 +2574,12 @@ fun FaccioIoApp(
                                 )
                             }
                             if (scheduled && reminderTime != null) {
-                                scheduled = scheduleReminder(context, appointment.title, reminderTime)
+                                scheduled = scheduleReminder(
+                                    context,
+                                    appointment.title,
+                                    reminderTime,
+                                    assistantAlertType == "Sveglia"
+                                )
                             }
                             if (scheduled) {
                                 tasks.add(
@@ -2515,6 +2588,17 @@ fun FaccioIoApp(
                                         reminderTime = reminderTime,
                                         category = assistantCategory,
                                         priority = assistantPriority,
+                                        alarmEnabled = reminderTime != null &&
+                                            assistantAlertType == "Sveglia",
+                                        recurrence = assistantRecurrence,
+                                        recurrenceIntervalDays = 1,
+                                        recurrenceWeekdays = if (
+                                            assistantRecurrence == "Personalizzata"
+                                        ) {
+                                            assistantRecurrenceWeekdays.toList()
+                                        } else {
+                                            emptyList()
+                                        },
                                         appointmentTime = appointmentTime,
                                         location = resolvedPlace?.address ?: appointment.location,
                                         latitude = resolvedPlace?.latitude,
@@ -4546,6 +4630,7 @@ private fun shiftRecurringTime(time: Long, task: TaskItem): Long =
             "Ogni giorno" -> add(Calendar.DAY_OF_YEAR, 1)
             "Ogni settimana" -> add(Calendar.WEEK_OF_YEAR, 1)
             "Ogni mese" -> add(Calendar.MONTH, 1)
+            "Ogni anno" -> add(Calendar.YEAR, 1)
             "Personalizzata" -> {
                 if (task.recurrenceWeekdays.isEmpty()) {
                     add(Calendar.DAY_OF_YEAR, task.recurrenceIntervalDays.coerceAtLeast(1))
@@ -4649,6 +4734,17 @@ private fun suggestAppointmentPriority(title: String): String {
             "facoltativo", "se possibile", "quando posso", "priorità bassa"
         ).any { it in text } -> "Bassa"
         else -> "Media"
+    }
+}
+
+private fun suggestAppointmentRecurrence(title: String): String {
+    val text = title.lowercase(Locale.ITALIAN)
+    return if (
+        listOf("compleanno", "anniversario", "onomastico").any { it in text }
+    ) {
+        "Ogni anno"
+    } else {
+        "Mai"
     }
 }
 
