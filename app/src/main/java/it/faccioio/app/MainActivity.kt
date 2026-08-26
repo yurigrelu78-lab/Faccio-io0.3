@@ -4399,6 +4399,8 @@ private fun shouldSkipCurrentOccurrence(
     editedTime: Long?,
     now: Long
 ): Boolean {
+    // Se l'occorrenza odierna è già trascorsa, un nuovo orario di oggi
+    // appartiene alla ricorrenza successiva e non riapre quella saltata.
     if (
         originalTime == null ||
         editedTime == null ||
