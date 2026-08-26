@@ -4125,7 +4125,7 @@ private fun recurringScheduleFromNextFutureOccurrence(
         val departureLeadTime = task.departureTime?.let {
             originalAppointment - it
         }
-        var futureAppointment = originalAppointment
+        var futureAppointment: Long = originalAppointment
         var futureReminder = task.reminderTime
         var futureDeparture = task.departureTime
 
