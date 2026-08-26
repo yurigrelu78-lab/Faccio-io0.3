@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/sveglia-attivita
+      - codex/luogo-arrivo-sveglia
   pull_request:
     branches:
       - main
