@@ -28,11 +28,29 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: gradle assembleDebug
+      - name: Prepare stable signing key
+        env:
+          FACCIO_IO_KEYSTORE_BASE64: ${{ secrets.FACCIO_IO_KEYSTORE_BASE64 }}
+          FACCIO_IO_KEYSTORE_PASSWORD: ${{ secrets.FACCIO_IO_KEYSTORE_PASSWORD }}
+          FACCIO_IO_KEY_ALIAS: ${{ secrets.FACCIO_IO_KEY_ALIAS }}
+          FACCIO_IO_KEY_PASSWORD: ${{ secrets.FACCIO_IO_KEY_PASSWORD }}
+        run: |
+          if [ -z "$FACCIO_IO_KEYSTORE_BASE64" ] || [ -z "$FACCIO_IO_KEYSTORE_PASSWORD" ] || [ -z "$FACCIO_IO_KEY_ALIAS" ] || [ -z "$FACCIO_IO_KEY_PASSWORD" ]; then
+            echo "Stable signing secrets are missing."
+            exit 1
+          fi
+          echo "$FACCIO_IO_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/faccio-io-release.jks"
+
+      - name: Build signed release APK
+        env:
+          FACCIO_IO_KEYSTORE_PATH: ${{ runner.temp }}/faccio-io-release.jks
+          FACCIO_IO_KEYSTORE_PASSWORD: ${{ secrets.FACCIO_IO_KEYSTORE_PASSWORD }}
+          FACCIO_IO_KEY_ALIAS: ${{ secrets.FACCIO_IO_KEY_ALIAS }}
+          FACCIO_IO_KEY_PASSWORD: ${{ secrets.FACCIO_IO_KEY_PASSWORD }}
+        run: gradle assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Faccio-io-0.3-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Faccio-io-0.3-signed
+          path: app/build/outputs/apk/release/app-release.apk
