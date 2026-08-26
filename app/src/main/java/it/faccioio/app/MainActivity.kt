@@ -2135,7 +2135,18 @@ fun FaccioIoApp(
                             editingRoutineTemplateIndex != null &&
                             customRoutineRecurrence != "Mai"
                         ) {
-                            recurringScheduleFromNextFutureOccurrence(scheduleDraft, now)
+                            val originalTemplate = editingRoutineTemplateIndex
+                                ?.let(customRoutineTemplates::getOrNull)
+                            recurringScheduleFromNextFutureOccurrence(
+                                task = scheduleDraft,
+                                now = now,
+                                forceNextOccurrence = shouldSkipCurrentOccurrence(
+                                    originalTime = originalTemplate?.appointmentTime
+                                        ?: originalTemplate?.reminderTime,
+                                    editedTime = rawAppointmentTime ?: rawReminderTime,
+                                    now = now
+                                )
+                            )
                         } else {
                             scheduleDraft
                         }
@@ -3351,8 +3362,15 @@ fun FaccioIoApp(
                                 )
                                 val normalizedSchedule = if (editedRecurrence != "Mai") {
                                     recurringScheduleFromNextFutureOccurrence(
-                                        editedSchedule,
-                                        now
+                                        task = editedSchedule,
+                                        now = now,
+                                        forceNextOccurrence = shouldSkipCurrentOccurrence(
+                                            originalTime = task.appointmentTime
+                                                ?: task.reminderTime,
+                                            editedTime = rawAppointmentTime
+                                                ?: rawReminderTime,
+                                            now = now
+                                        )
                                     )
                                 } else {
                                     editedSchedule
@@ -4331,7 +4349,8 @@ private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
 
 private fun recurringScheduleFromNextFutureOccurrence(
     task: TaskItem,
-    now: Long
+    now: Long,
+    forceNextOccurrence: Boolean = false
 ): TaskItem {
     if (task.recurrence == "Mai") return task
 
@@ -4347,6 +4366,11 @@ private fun recurringScheduleFromNextFutureOccurrence(
         var futureReminder = task.reminderTime
         var futureDeparture = task.departureTime
 
+        if (forceNextOccurrence) {
+            futureAppointment = shiftRecurringTime(futureAppointment, task)
+            futureReminder = reminderLeadTime?.let { futureAppointment - it }
+            futureDeparture = departureLeadTime?.let { futureAppointment - it }
+        }
         while ((futureReminder ?: futureAppointment) <= now) {
             futureAppointment = shiftRecurringTime(futureAppointment, task)
             futureReminder = reminderLeadTime?.let { futureAppointment - it }
@@ -4361,10 +4385,37 @@ private fun recurringScheduleFromNextFutureOccurrence(
     }
 
     var futureReminder = task.reminderTime
+    if (forceNextOccurrence && futureReminder != null) {
+        futureReminder = shiftRecurringTime(futureReminder, task)
+    }
     while (futureReminder != null && futureReminder <= now) {
         futureReminder = shiftRecurringTime(futureReminder, task)
     }
     return task.copy(reminderTime = futureReminder)
+}
+
+private fun shouldSkipCurrentOccurrence(
+    originalTime: Long?,
+    editedTime: Long?,
+    now: Long
+): Boolean {
+    if (
+        originalTime == null ||
+        editedTime == null ||
+        originalTime > now ||
+        editedTime <= now
+    ) return false
+
+    val originalDate = Calendar.getInstance().apply {
+        timeInMillis = originalTime
+    }
+    val editedDate = Calendar.getInstance().apply {
+        timeInMillis = editedTime
+    }
+    return originalDate.get(Calendar.ERA) == editedDate.get(Calendar.ERA) &&
+        originalDate.get(Calendar.YEAR) == editedDate.get(Calendar.YEAR) &&
+        originalDate.get(Calendar.DAY_OF_YEAR) ==
+            editedDate.get(Calendar.DAY_OF_YEAR)
 }
 
 private fun updateRoutineStep(
