@@ -26,7 +26,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
@@ -184,6 +186,8 @@ data class ResolvedPlace(
 
 internal const val TASK_PREFS = "faccio_io_tasks"
 internal const val TASKS_KEY = "saved_tasks"
+private const val CLEANUP_PROMPT_PREFS = "faccio_io_cleanup_prompt"
+private const val CLEANUP_PROMPT_HANDLED_DATE_KEY = "handled_date"
 private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
 private val TASK_RECURRENCES = listOf(
@@ -202,6 +206,21 @@ private val APPOINTMENT_REMINDER_OPTIONS = listOf(
     "Personalizzato",
     "Nessun promemoria"
 )
+
+private fun cleanupDayKey(time: Long = System.currentTimeMillis()): String =
+    SimpleDateFormat("yyyy-MM-dd", Locale.ITALIAN).format(Date(time))
+
+private fun loadCleanupPromptHandledDate(context: Context): String =
+    context.getSharedPreferences(CLEANUP_PROMPT_PREFS, Context.MODE_PRIVATE)
+        .getString(CLEANUP_PROMPT_HANDLED_DATE_KEY, "")
+        .orEmpty()
+
+private fun saveCleanupPromptHandledDate(context: Context, dateKey: String) {
+    context.getSharedPreferences(CLEANUP_PROMPT_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(CLEANUP_PROMPT_HANDLED_DATE_KEY, dateKey)
+        .apply()
+}
 
 @Composable
 fun FaccioIoApp(
@@ -275,6 +294,10 @@ fun FaccioIoApp(
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
     var mainSection by rememberSaveable { mutableStateOf("Oggi") }
     var dayCompletionSignal by rememberSaveable { mutableStateOf(0) }
+    var showDailyCleanupPrompt by rememberSaveable { mutableStateOf(false) }
+    var cleanupPromptHandledDate by rememberSaveable {
+        mutableStateOf(loadCleanupPromptHandledDate(context))
+    }
     var showTaskSearch by rememberSaveable { mutableStateOf(false) }
     var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
@@ -317,6 +340,20 @@ fun FaccioIoApp(
     val tasks = remember(context) {
         mutableStateListOf<TaskItem>().apply {
             addAll(loadTasks(context))
+        }
+    }
+
+    LaunchedEffect(dayCompletionSignal) {
+        if (dayCompletionSignal <= 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(2_650)
+        val todayKey = cleanupDayKey()
+        val hasCompletedOneOffTasksToday = tasks.any { task ->
+            task.completed &&
+                task.recurrence == "Mai" &&
+                (task.appointmentTime ?: task.reminderTime)?.let { isSameDay(it, System.currentTimeMillis()) } == true
+        }
+        if (hasCompletedOneOffTasksToday && cleanupPromptHandledDate != todayKey) {
+            showDailyCleanupPrompt = true
         }
     }
     var pendingBackupRestore by remember { mutableStateOf<BackupPayload?>(null) }
@@ -2626,6 +2663,67 @@ fun FaccioIoApp(
         )
     }
 
+    if (showDailyCleanupPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                val todayKey = cleanupDayKey()
+                cleanupPromptHandledDate = todayKey
+                saveCleanupPromptHandledDate(context, todayKey)
+                showDailyCleanupPrompt = false
+            },
+            title = { Text("Vuoi fare pulizia?") },
+            text = {
+                Text(
+                    "Puoi eliminare le attività concluse di oggi. " +
+                        "Le attività ricorrenti e quelle future non verranno rimosse."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val now = System.currentTimeMillis()
+                        val removableTasks = tasks.filter { task ->
+                            task.completed &&
+                                task.recurrence == "Mai" &&
+                                (task.appointmentTime ?: task.reminderTime)?.let {
+                                    isSameDay(it, now)
+                                } == true
+                        }
+                        removableTasks.forEach { task ->
+                            cancelReminder(context, task)
+                            cancelDepartureReminder(context, task)
+                            task.arrivalReminderId?.let {
+                                removeArrivalGeofence(context, it)
+                            }
+                        }
+                        tasks.removeAll(removableTasks.toSet())
+                        saveTasks(context, tasks)
+                        val todayKey = cleanupDayKey(now)
+                        cleanupPromptHandledDate = todayKey
+                        saveCleanupPromptHandledDate(context, todayKey)
+                        showDailyCleanupPrompt = false
+                        Toast.makeText(
+                            context,
+                            "Attività concluse eliminate",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy)
+                ) { Text("Elimina concluse") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        val todayKey = cleanupDayKey()
+                        cleanupPromptHandledDate = todayKey
+                        saveCleanupPromptHandledDate(context, todayKey)
+                        showDailyCleanupPrompt = false
+                    }
+                ) { Text("Mantieni") }
+            }
+        )
+    }
+
     if (showShoppingSuggestion) {
         AlertDialog(
             onDismissRequest = {
@@ -3807,6 +3905,7 @@ private fun TodayAgenda(
             AgendaEntry(index, task, time)
         } else null
     }.sortedBy { it.time }
+    val visibleScheduled = scheduled.filterNot { it.task.completed }
     val unscheduled = tasks.mapIndexedNotNull { index, task ->
         if (!task.completed && task.appointmentTime == null && task.reminderTime == null) {
             index to task
@@ -3815,11 +3914,11 @@ private fun TodayAgenda(
         compareBy<Pair<Int, TaskItem>> { priorityOrder(it.second.priority) }
             .thenBy { it.first }
     )
-    val nextEntry = scheduled.firstOrNull { !it.task.completed && it.time >= now }
-    val overlappingIndexes = scheduled.indices.flatMap { firstIndex ->
-        ((firstIndex + 1) until scheduled.size).flatMap { secondIndex ->
-            val first = scheduled[firstIndex]
-            val second = scheduled[secondIndex]
+    val nextEntry = visibleScheduled.firstOrNull { it.time >= now }
+    val overlappingIndexes = visibleScheduled.indices.flatMap { firstIndex ->
+        ((firstIndex + 1) until visibleScheduled.size).flatMap { secondIndex ->
+            val first = visibleScheduled[firstIndex]
+            val second = visibleScheduled[secondIndex]
             if (first.time + first.task.durationMinutes * 60_000L > second.time) {
                 listOf(first.index, second.index)
             } else emptyList()
@@ -4064,20 +4163,28 @@ private fun TodayAgenda(
         }
 
         if (scheduled.isNotEmpty()) {
-            item { Text("Prossime attività", fontWeight = FontWeight.Bold, color = FaccioNavy) }
+            if (visibleScheduled.isNotEmpty()) {
+                item { Text("Prossime attività", fontWeight = FontWeight.Bold, color = FaccioNavy) }
+            }
             items(scheduled) { entry ->
-                AgendaTaskCard(
-                    task = entry.task,
-                    leadingText = formatHour(entry.time),
-                    isNext = entry == nextEntry,
-                    hasConflict = entry.index in overlappingIndexes,
-                    onStepChange = { stepIndex, completed ->
-                        onStepChange(entry.index, stepIndex, completed)
-                    },
-                    onCompletedChange = { onCompletedChange(entry.index, it) },
-                    onOpenMap = onOpenMap,
-                    onOpenShoppingList = { onOpenShoppingList(entry.index) }
-                )
+                AnimatedVisibility(
+                    visible = !entry.task.completed,
+                    exit = fadeOut(animationSpec = tween(320)) +
+                        shrinkVertically(animationSpec = tween(420))
+                ) {
+                    AgendaTaskCard(
+                        task = entry.task,
+                        leadingText = formatHour(entry.time),
+                        isNext = entry == nextEntry,
+                        hasConflict = entry.index in overlappingIndexes,
+                        onStepChange = { stepIndex, completed ->
+                            onStepChange(entry.index, stepIndex, completed)
+                        },
+                        onCompletedChange = { onCompletedChange(entry.index, it) },
+                        onOpenMap = onOpenMap,
+                        onOpenShoppingList = { onOpenShoppingList(entry.index) }
+                    )
+                }
             }
         }
 
