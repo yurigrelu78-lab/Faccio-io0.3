@@ -23,7 +23,18 @@ class GeofenceReceiver : BroadcastReceiver() {
         ids.forEach { id ->
             val index = tasks.indexOfFirst { it.arrivalReminderId == id }
             if (index >= 0) {
-                notifyArrival(context, tasks[index].title, id.hashCode())
+                val task = tasks[index]
+                if (task.arrivalAlarmEnabled) {
+                    context.sendBroadcast(
+                        Intent(context, ReminderReceiver::class.java).apply {
+                            putExtra("task_title", task.title)
+                            putExtra("reminder_time", System.currentTimeMillis())
+                            putExtra("is_alarm", true)
+                        }
+                    )
+                } else {
+                    notifyArrival(context, task.title, id.hashCode())
+                }
                 tasks[index] = tasks[index].copy(arrivalReminderId = null)
                 removeArrivalGeofence(context, id)
             }
