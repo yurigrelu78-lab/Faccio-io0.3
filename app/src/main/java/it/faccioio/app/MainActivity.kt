@@ -262,6 +262,7 @@ fun FaccioIoApp(
     var taskReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var taskAlertType by rememberSaveable { mutableStateOf("Promemoria") }
     var taskArrivalAlertType by rememberSaveable { mutableStateOf("Promemoria") }
+    var taskArrivalEnabled by rememberSaveable { mutableStateOf(false) }
     var taskRecurrence by rememberSaveable { mutableStateOf("Mai") }
     val taskRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
     var taskDuration by rememberSaveable { mutableStateOf("30 minuti") }
@@ -415,6 +416,7 @@ fun FaccioIoApp(
         taskReminderTime = null
         taskAlertType = "Promemoria"
         taskArrivalAlertType = "Promemoria"
+        taskArrivalEnabled = false
         taskRecurrence = "Mai"
         taskRecurrenceWeekdays.clear()
         taskDuration = "30 minuti"
@@ -442,6 +444,7 @@ fun FaccioIoApp(
         taskReminderTime = null
         taskAlertType = "Promemoria"
         taskArrivalAlertType = "Promemoria"
+        taskArrivalEnabled = false
         taskRecurrence = "Mai"
         taskRecurrenceWeekdays.clear()
         taskDuration = "30 minuti"
@@ -624,74 +627,14 @@ fun FaccioIoApp(
             modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-        OutlinedTextField(
-            value = newTask,
-            onValueChange = { newTask = it },
-            label = { Text("Cosa devi fare?") },
-            singleLine = true,
-            keyboardOptions = sentenceKeyboardOptions,
-            keyboardActions = localDismissKeyboardActions(),
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = FaccioTeal,
-                focusedLabelColor = FaccioTeal
-            )
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            SelectionMenu(
-                label = "Categoria",
-                selectedValue = selectedCategory,
-                values = TASK_CATEGORIES,
-                onValueSelected = { selectedCategory = it },
-                modifier = Modifier.weight(1f)
-            )
-            SelectionMenu(
-                label = "Priorità",
-                selectedValue = selectedPriority,
-                values = TASK_PRIORITIES,
-                onValueSelected = { selectedPriority = it },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
         Button(
             onClick = {
-                val text = newTask.trim()
-                if (text.isEmpty()) {
-                    Toast.makeText(
-                        context,
-                        "Scrivi prima il nome dell’attività",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    pendingTask = text
-                    pendingCategory = selectedCategory
-                    pendingPriority = selectedPriority
-                    pendingRoutineSteps = emptyList()
-                    taskReminderMode = "Nessuno"
-                    taskReminderTime = null
-                    taskRecurrence = "Mai"
-                    taskRecurrenceWeekdays.clear()
-                    taskDuration = "30 minuti"
-                    taskCustomDuration = "30"
-                    taskLocationQuery = ""
-                    taskResolvedPlace = null
-                    pendingHasShoppingList = false
-                    pendingListSuggestionKind = suggestedListKind(text)
-                    if (pendingListSuggestionKind != null) {
-                        showShoppingSuggestion = true
-                    } else {
-                        showReminderChoice = true
-                    }
-                }
+                resetManualTaskDraft()
+                showReminderChoice = true
             },
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
@@ -699,7 +642,7 @@ fun FaccioIoApp(
         ) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Aggiungi")
+            Text("Manuale")
         }
 
         Button(
@@ -2878,19 +2821,69 @@ fun FaccioIoApp(
     if (showReminderChoice) {
         AlertDialog(
             onDismissRequest = { resetManualTaskDraft() },
-            title = { Text("Come vuoi essere avvisato?") },
+            title = { Text("Nuova attività") },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    SelectionMenu(
-                        label = "Modalità",
-                        selectedValue = taskReminderMode,
-                        values = listOf("Nessuno", "Data e ora", "Quando arrivo", "Entrambi"),
-                        onValueSelected = { taskReminderMode = it },
-                        modifier = Modifier.fillMaxWidth()
+                    OutlinedTextField(
+                        value = newTask,
+                        onValueChange = { newTask = it },
+                        label = { Text("Cosa devi fare?") },
+                        keyboardOptions = sentenceKeyboardOptions,
+                        keyboardActions = localDismissKeyboardActions(),
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = FaccioTeal,
+                            focusedLabelColor = FaccioTeal
+                        )
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        SelectionMenu(
+                            label = "Categoria",
+                            selectedValue = selectedCategory,
+                            values = TASK_CATEGORIES,
+                            onValueSelected = { selectedCategory = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        SelectionMenu(
+                            label = "Priorità",
+                            selectedValue = selectedPriority,
+                            values = TASK_PRIORITIES,
+                            onValueSelected = { selectedPriority = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    suggestedListKind(newTask)?.let { kind ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    if (kind == "viaggio") "Lista per il viaggio"
+                                    else "Lista della spesa",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "Aggiungi una lista da compilare e spuntare.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = FaccioMutedText
+                                )
+                            }
+                            Switch(
+                                checked = pendingHasShoppingList,
+                                onCheckedChange = { pendingHasShoppingList = it }
+                            )
+                        }
+                    }
                     SelectionMenu(
                         label = "Ripetizione",
                         selectedValue = taskRecurrence,
@@ -2922,31 +2915,36 @@ fun FaccioIoApp(
                         onSelected = { taskDuration = it },
                         onCustomChanged = { taskCustomDuration = it }
                     )
-                    if (
-                        taskReminderMode == "Data e ora" ||
-                        taskReminderMode == "Entrambi" ||
-                        taskRecurrence != "Mai"
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                showDateTimePicker(
-                                    context,
-                                    taskActivityTime ?: System.currentTimeMillis()
-                                ) { selectedTime ->
-                                    taskActivityTime = selectedTime
-                                    if (taskReminderTiming == "All’ora esatta") {
-                                        taskReminderTime = null
-                                    }
+                    Text("Quando", fontWeight = FontWeight.SemiBold)
+                    OutlinedButton(
+                        onClick = {
+                            showDateTimePicker(
+                                context,
+                                taskActivityTime ?: System.currentTimeMillis()
+                            ) { selectedTime ->
+                                taskActivityTime = selectedTime
+                                if (taskReminderTiming == "All’ora esatta") {
+                                    taskReminderTime = null
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                taskActivityTime?.let {
-                                    "Attività: ${formatReminderTime(it)}"
-                                } ?: "Scegli data e ora dell’attività"
-                            )
-                        }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            taskActivityTime?.let {
+                                "Attività: ${formatReminderTime(it)}"
+                            } ?: "Aggiungi data e ora (facoltativo)"
+                        )
+                    }
+                    if (taskActivityTime != null) {
+                        TextButton(
+                            onClick = {
+                                taskActivityTime = null
+                                taskReminderTime = null
+                                taskReminderTiming = "All’ora esatta"
+                                if (taskLocationQuery.isNotBlank()) taskArrivalEnabled = true
+                            }
+                        ) { Text("Rimuovi data e ora") }
                         SelectionMenu(
                             label = "Quando avvisare",
                             selectedValue = taskReminderTiming,
@@ -2995,16 +2993,20 @@ fun FaccioIoApp(
                         }
                     }
                     Text("Luogo", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Se non imposti data e ora, il luogo attiva automaticamente “Quando arrivo”.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = FaccioMutedText
-                    )
                     run {
                         OutlinedTextField(
                             value = taskLocationQuery,
-                            onValueChange = { taskLocationQuery = it; taskResolvedPlace = null },
-                            label = { Text("Luogo o indirizzo") },
+                            onValueChange = {
+                                taskLocationQuery = it
+                                taskResolvedPlace = null
+                                taskPlaceMessage = ""
+                                if (it.isNotBlank() && taskActivityTime == null) {
+                                    taskArrivalEnabled = true
+                                } else if (it.isBlank()) {
+                                    taskArrivalEnabled = false
+                                }
+                            },
+                            label = { Text("Luogo o indirizzo (facoltativo)") },
                             keyboardOptions = sentenceKeyboardOptions,
                             keyboardActions = localDismissKeyboardActions(),
                             modifier = Modifier.fillMaxWidth()
@@ -3026,11 +3028,29 @@ fun FaccioIoApp(
                                 Text("Controlla sulla mappa")
                             }
                         }
-                        if (
-                            taskReminderMode == "Quando arrivo" ||
-                            taskReminderMode == "Entrambi" ||
-                            (taskReminderMode == "Nessuno" && taskLocationQuery.isNotBlank())
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Avvisami quando arrivo", fontWeight = FontWeight.SemiBold)
+                                if (taskLocationQuery.isNotBlank() && taskActivityTime == null) {
+                                    Text(
+                                        "Attivato automaticamente perché non hai indicato data e ora.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioMutedText
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = taskArrivalEnabled,
+                                onCheckedChange = { enabled ->
+                                    taskArrivalEnabled = enabled
+                                }
+                            )
+                        }
+                        if (taskArrivalEnabled) {
                             SelectionMenu(
                                 label = "Avviso all’arrivo",
                                 selectedValue = taskArrivalAlertType,
@@ -3052,11 +3072,21 @@ fun FaccioIoApp(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val needsTime = taskReminderMode == "Data e ora" ||
-                            taskReminderMode == "Entrambi" || taskRecurrence != "Mai"
-                        val automaticArrival = taskReminderMode == "Nessuno" && taskLocationQuery.isNotBlank()
-                        val needsPlace = taskReminderMode == "Quando arrivo" ||
-                            taskReminderMode == "Entrambi" || automaticArrival
+                        val manualTitle = newTask.trim()
+                        if (manualTitle.isEmpty()) {
+                            Toast.makeText(
+                                context,
+                                "Scrivi prima il nome dell’attività",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@TextButton
+                        }
+                        pendingTask = manualTitle
+                        pendingCategory = selectedCategory
+                        pendingPriority = selectedPriority
+                        val needsTime = taskActivityTime != null || taskRecurrence != "Mai"
+                        val hasPlaceInput = taskLocationQuery.isNotBlank()
+                        val needsPlace = taskArrivalEnabled
                         val recurrenceDays = 1
                         val durationMinutes = selectedDurationMinutes(taskDuration, taskCustomDuration)
                         if (durationMinutes !in 30..720 || durationMinutes % 30 != 0) {
@@ -3095,7 +3125,7 @@ fun FaccioIoApp(
                             return@TextButton
                         }
                         val place = taskResolvedPlace
-                        if (needsPlace && place == null) {
+                        if ((needsPlace || hasPlaceInput) && place == null) {
                             Toast.makeText(context, "Cerca e verifica prima il luogo", Toast.LENGTH_LONG).show()
                             return@TextButton
                         }
@@ -3147,6 +3177,7 @@ fun FaccioIoApp(
                             } else {
                                 addPendingTask(
                                     reminderTime = effectiveReminderTime,
+                                    place = place,
                                     recurrence = taskRecurrence,
                                     recurrenceDays = recurrenceDays,
                                     durationMinutes = durationMinutes,
@@ -3171,7 +3202,7 @@ fun FaccioIoApp(
                             saveManualTask()
                         }
                     }
-                ) { Text("Salva attività") }
+                ) { Text("Aggiungi") }
             },
             dismissButton = {
                 TextButton(onClick = { resetManualTaskDraft() }) { Text("Annulla") }
