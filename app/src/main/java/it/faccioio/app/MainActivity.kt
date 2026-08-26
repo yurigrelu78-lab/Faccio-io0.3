@@ -350,6 +350,7 @@ fun FaccioIoApp(
         val hasCompletedOneOffTasksToday = tasks.any { task ->
             task.completed &&
                 task.recurrence == "Mai" &&
+                task.routineSteps.isEmpty() &&
                 (task.appointmentTime ?: task.reminderTime)?.let { isSameDay(it, System.currentTimeMillis()) } == true
         }
         if (hasCompletedOneOffTasksToday && cleanupPromptHandledDate != todayKey) {
@@ -2675,7 +2676,7 @@ fun FaccioIoApp(
             text = {
                 Text(
                     "Puoi eliminare le attività concluse di oggi. " +
-                        "Le attività ricorrenti e quelle future non verranno rimosse."
+                        "Routine, attività ricorrenti e attività future non verranno rimosse."
                 )
             },
             confirmButton = {
@@ -2685,6 +2686,7 @@ fun FaccioIoApp(
                         val removableTasks = tasks.filter { task ->
                             task.completed &&
                                 task.recurrence == "Mai" &&
+                                task.routineSteps.isEmpty() &&
                                 (task.appointmentTime ?: task.reminderTime)?.let {
                                     isSameDay(it, now)
                                 } == true
