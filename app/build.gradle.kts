@@ -12,8 +12,27 @@ android {
         applicationId = "it.faccioio.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
+        versionCode = 4
         versionName = "0.3"
+    }
+
+    signingConfigs {
+        create("stableRelease") {
+            val keystorePath = System.getenv("FACCIO_IO_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("FACCIO_IO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FACCIO_IO_KEY_ALIAS")
+                keyPassword = System.getenv("FACCIO_IO_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("stableRelease")
+            isMinifyEnabled = false
+        }
     }
 
     buildFeatures {
