@@ -24,11 +24,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -263,7 +258,6 @@ fun FaccioIoApp(
     var departureSafety by rememberSaveable { mutableStateOf("Normale") }
     var departureEstimate by remember { mutableStateOf<DepartureEstimate?>(null) }
     var mainSection by rememberSaveable { mutableStateOf("Oggi") }
-    var dayCompletionSignal by rememberSaveable { mutableStateOf(0) }
     var showTaskSearch by rememberSaveable { mutableStateOf(false) }
     var taskSearchQuery by rememberSaveable { mutableStateOf("") }
     var showRoutineTemplates by rememberSaveable { mutableStateOf(false) }
@@ -414,71 +408,6 @@ fun FaccioIoApp(
         taskPlaceMessage = ""
     }
 
-    fun resetManualTaskDraft() {
-        newTask = ""
-        pendingTask = ""
-        selectedCategory = "Personale"
-        selectedPriority = "Media"
-        pendingCategory = "Personale"
-        pendingPriority = "Media"
-        pendingRoutineSteps = emptyList()
-        pendingHasShoppingList = false
-        pendingListSuggestionKind = null
-        showShoppingSuggestion = false
-        showReminderChoice = false
-        taskReminderMode = "Nessuno"
-        taskActivityTime = null
-        taskReminderTiming = "All’ora esatta"
-        taskReminderTime = null
-        taskAlertType = "Promemoria"
-        taskArrivalAlertType = "Promemoria"
-        taskRecurrence = "Mai"
-        taskRecurrenceWeekdays.clear()
-        taskDuration = "30 minuti"
-        taskCustomDuration = "30"
-        taskLocationQuery = ""
-        taskResolvedPlace = null
-        taskPlaceMessage = ""
-        departureTransport = "Auto"
-        departureSafety = "Normale"
-        departureEstimate = null
-    }
-
-    fun resetAssistantDraft() {
-        showAssistant = false
-        assistantText = ""
-        assistantResult = null
-        resolvedPlace = null
-        placeLookupMessage = ""
-        appointmentReminderOption = "All’ora esatta"
-        customAppointmentReminderTime = null
-        assistantCategory = "Personale"
-        assistantPriority = "Media"
-        assistantDuration = "30 minuti"
-        assistantCustomDuration = "30"
-        assistantListEnabled = false
-        assistantListSuggestionKind = null
-        departureTransport = "Auto"
-        departureSafety = "Normale"
-        departureEstimate = null
-    }
-
-    fun resetCustomRoutineDraft() {
-        showCustomRoutineEditor = false
-        editingRoutineTemplateIndex = null
-        customRoutineName = ""
-        customRoutineCategory = "Personale"
-        customRoutinePriority = "Media"
-        customRoutineAppointmentTime = null
-        customRoutineReminderMode = "Nessuno"
-        customRoutineReminderTime = null
-        customRoutineAlarmEnabled = false
-        customRoutineRecurrence = "Mai"
-        customRoutineRecurrenceWeekdays.clear()
-        customRoutineSteps.clear()
-        customRoutineSteps.add("")
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -529,24 +458,11 @@ fun FaccioIoApp(
         if (mainSection == "Oggi") {
             TodayAgenda(
                 tasks = tasks,
-                completionSignal = dayCompletionSignal,
                 onCompletedChange = { index, completed ->
-                    val completesDay = completed &&
-                        isLastPendingScheduledTaskForToday(tasks, index)
                     updateTaskCompletion(context, tasks, index, completed)
-                    if (completesDay) dayCompletionSignal++
                 },
                 onStepChange = { index, stepIndex, completed ->
-                    val task = tasks.getOrNull(index)
-                    val completesRoutine = completed &&
-                        task != null &&
-                        task.routineSteps.mapIndexed { currentIndex, step ->
-                            if (currentIndex == stepIndex) true else step.completed
-                        }.all { it }
-                    val completesDay = completesRoutine &&
-                        isLastPendingScheduledTaskForToday(tasks, index)
                     updateRoutineStep(context, tasks, index, stepIndex, completed)
-                    if (completesDay) dayCompletionSignal++
                 },
                 onOpenMap = { task ->
                     openPlaceOnMap(
@@ -1393,7 +1309,7 @@ fun FaccioIoApp(
 
     if (showAssistant) {
         AlertDialog(
-            onDismissRequest = { resetAssistantDraft() },
+            onDismissRequest = { showAssistant = false },
             shape = RoundedCornerShape(20.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
@@ -1537,7 +1453,7 @@ fun FaccioIoApp(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { resetAssistantDraft() },
+                    onClick = { showAssistant = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
                 ) { Text("Annulla") }
             }
@@ -1844,7 +1760,7 @@ fun FaccioIoApp(
 
     if (showCustomRoutineEditor) {
         AlertDialog(
-            onDismissRequest = { resetCustomRoutineDraft() },
+            onDismissRequest = { showCustomRoutineEditor = false },
             shape = RoundedCornerShape(20.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 3.dp,
@@ -2100,13 +2016,13 @@ fun FaccioIoApp(
                             ).show()
                             return@Button
                         }
-                        val appointmentTime = customRoutineAppointmentTime
-                        val reminderTime = when (customRoutineReminderMode) {
+                        val rawAppointmentTime = customRoutineAppointmentTime
+                        val rawReminderTime = when (customRoutineReminderMode) {
                             "Nessuno" -> null
-                            "All’ora esatta" -> appointmentTime
+                            "All’ora esatta" -> rawAppointmentTime
                             else -> customRoutineReminderTime
                         }
-                        if (customRoutineRecurrence != "Mai" && appointmentTime == null) {
+                        if (customRoutineRecurrence != "Mai" && rawAppointmentTime == null) {
                             Toast.makeText(context, "La ripetizione richiede data e ora", Toast.LENGTH_LONG).show()
                             return@Button
                         }
@@ -2114,11 +2030,33 @@ fun FaccioIoApp(
                             Toast.makeText(context, "Seleziona almeno un giorno", Toast.LENGTH_LONG).show()
                             return@Button
                         }
-                        if (customRoutineReminderMode != "Nessuno" && reminderTime == null) {
+                        if (customRoutineReminderMode != "Nessuno" && rawReminderTime == null) {
                             Toast.makeText(context, "Scegli l’orario dell’avviso", Toast.LENGTH_LONG).show()
                             return@Button
                         }
                         val now = System.currentTimeMillis()
+                        val scheduleDraft = TaskItem(
+                            title = name,
+                            appointmentTime = rawAppointmentTime,
+                            reminderTime = rawReminderTime,
+                            recurrence = customRoutineRecurrence,
+                            recurrenceIntervalDays = 1,
+                            recurrenceWeekdays = if (customRoutineRecurrence == "Personalizzata") {
+                                customRoutineRecurrenceWeekdays.toList()
+                            } else {
+                                emptyList()
+                            }
+                        )
+                        val normalizedSchedule = if (
+                            editingRoutineTemplateIndex != null &&
+                            customRoutineRecurrence != "Mai"
+                        ) {
+                            recurringScheduleFromNextFutureOccurrence(scheduleDraft, now)
+                        } else {
+                            scheduleDraft
+                        }
+                        val appointmentTime = normalizedSchedule.appointmentTime
+                        val reminderTime = normalizedSchedule.reminderTime
                         if (appointmentTime != null && appointmentTime <= now) {
                             Toast.makeText(context, "Data e ora della routine devono essere future", Toast.LENGTH_LONG).show()
                             return@Button
@@ -2217,7 +2155,7 @@ fun FaccioIoApp(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { resetCustomRoutineDraft() },
+                    onClick = { showCustomRoutineEditor = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = FaccioMutedText)
                 ) { Text("Annulla") }
             }
@@ -2253,7 +2191,7 @@ fun FaccioIoApp(
         }
 
         AlertDialog(
-            onDismissRequest = { resetAssistantDraft() },
+            onDismissRequest = { assistantResult = null },
             title = { Text("Conferma appuntamento") },
             text = {
                 Column(
@@ -2525,7 +2463,7 @@ fun FaccioIoApp(
                 ) { Text("Salva appuntamento") }
             },
             dismissButton = {
-                TextButton(onClick = { resetAssistantDraft() }) {
+                TextButton(onClick = { assistantResult = null }) {
                     Text("Annulla")
                 }
             }
@@ -2760,7 +2698,7 @@ fun FaccioIoApp(
 
     if (showReminderChoice) {
         AlertDialog(
-            onDismissRequest = { resetManualTaskDraft() },
+            onDismissRequest = { showReminderChoice = false },
             title = { Text("Come vuoi essere avvisato?") },
             text = {
                 Column(
@@ -3057,7 +2995,7 @@ fun FaccioIoApp(
                 ) { Text("Salva attività") }
             },
             dismissButton = {
-                TextButton(onClick = { resetManualTaskDraft() }) { Text("Annulla") }
+                TextButton(onClick = { showReminderChoice = false }) { Text("Annulla") }
             }
         )
     }
@@ -3308,13 +3246,37 @@ fun FaccioIoApp(
                                     return@TextButton
                                 }
                                 val now = System.currentTimeMillis()
-                                val newAppointmentTime =
+                                val rawAppointmentTime =
                                     editedAppointmentTime ?: task.appointmentTime
-                                val newReminderTime = when (editedReminderMode) {
+                                val rawReminderTime = when (editedReminderMode) {
                                     "Nessuno" -> null
-                                    "All’ora esatta" -> newAppointmentTime
+                                    "All’ora esatta" -> rawAppointmentTime
                                     else -> editedReminderTime
                                 }
+                                val editedSchedule = task.copy(
+                                    title = newTitle,
+                                    appointmentTime = rawAppointmentTime,
+                                    reminderTime = rawReminderTime,
+                                    recurrence = editedRecurrence,
+                                    recurrenceIntervalDays = recurrenceDays,
+                                    recurrenceWeekdays = if (editedRecurrence == "Personalizzata") {
+                                        editedRecurrenceWeekdays.toList()
+                                    } else {
+                                        emptyList()
+                                    }
+                                )
+                                val normalizedSchedule = if (editedRecurrence != "Mai") {
+                                    recurringScheduleFromNextFutureOccurrence(
+                                        editedSchedule,
+                                        now
+                                    )
+                                } else {
+                                    editedSchedule
+                                }
+                                val newAppointmentTime =
+                                    normalizedSchedule.appointmentTime
+                                val newReminderTime =
+                                    normalizedSchedule.reminderTime
                                 val appointmentChanged =
                                     newAppointmentTime != task.appointmentTime
                                 val reminderChanged =
@@ -3609,7 +3571,6 @@ private fun GuideTopic(title: String, description: String) {
 @Composable
 private fun TodayAgenda(
     tasks: List<TaskItem>,
-    completionSignal: Int,
     onCompletedChange: (Int, Boolean) -> Unit,
     onStepChange: (Int, Int, Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit,
@@ -3646,41 +3607,11 @@ private fun TodayAgenda(
             } else emptyList()
         }
     }.toSet()
-    val todayTasks = scheduled.map { it.task }
-    val totalMinutes = todayTasks.sumOf { it.durationMinutes }
+    val totalMinutes = scheduled.sumOf { it.task.durationMinutes } +
+        unscheduled.sumOf { it.second.durationMinutes }
+    val todayTasks = scheduled.map { it.task } + unscheduled.map { it.second }
     val completedCount = todayTasks.count { it.completed }
     val progress = if (todayTasks.isEmpty()) 0f else completedCount.toFloat() / todayTasks.size
-    val dayCompleted =
-        (todayTasks.isNotEmpty() && todayTasks.all { it.completed }) ||
-            (completionSignal > 0 && todayTasks.none { !it.completed })
-    var completionCardVisible by remember { mutableStateOf(dayCompleted) }
-    var completionMarkVisible by remember { mutableStateOf(dayCompleted) }
-    var completionCopyVisible by remember { mutableStateOf(dayCompleted) }
-    var previousDayCompleted by remember { mutableStateOf(dayCompleted) }
-
-    LaunchedEffect(dayCompleted) {
-        if (dayCompleted && !previousDayCompleted) {
-            completionCardVisible = false
-            completionMarkVisible = false
-            completionCopyVisible = false
-            kotlinx.coroutines.delay(180)
-            completionCardVisible = true
-            kotlinx.coroutines.delay(620)
-            completionMarkVisible = true
-            kotlinx.coroutines.delay(520)
-            completionCopyVisible = true
-        } else if (dayCompleted) {
-            completionCardVisible = true
-            completionMarkVisible = true
-            completionCopyVisible = true
-        } else {
-            completionCardVisible = false
-            completionMarkVisible = false
-            completionCopyVisible = false
-        }
-        previousDayCompleted = dayCompleted
-    }
-
     val routeCandidates = (scheduled.map { it.task } + unscheduled.map { it.second })
         .distinct()
         .filter { it.latitude != null && it.longitude != null && !it.completed }
@@ -3720,121 +3651,39 @@ private fun TodayAgenda(
             }
         }
 
-        if (scheduled.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = FaccioCard)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = FaccioCard)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("La tua giornata", fontWeight = FontWeight.Bold, color = FaccioNavy)
-                            Text(
-                                "$completedCount/${todayTasks.size} completate",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = FaccioMutedText
-                            )
-                        }
+                        Text("La tua giornata", fontWeight = FontWeight.Bold, color = FaccioNavy)
                         Text(
-                            "${todayTasks.size} attività · ${formatDuration(totalMinutes)}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "$completedCount/${todayTasks.size} completate",
+                            style = MaterialTheme.typography.labelMedium,
                             color = FaccioMutedText
                         )
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(5.dp),
-                            color = FaccioTeal,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
                     }
-                }
-            }
-        }
-
-        if (dayCompleted) {
-            item {
-                AnimatedVisibility(
-                    visible = completionCardVisible,
-                    enter = fadeIn(animationSpec = tween(650)) +
-                        slideInVertically(
-                            initialOffsetY = { height -> height / 4 },
-                            animationSpec = tween(700)
-                        )
-                ) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(22.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AnimatedVisibility(
-                                visible = completionMarkVisible,
-                                enter = fadeIn(animationSpec = tween(350)) +
-                                    scaleIn(
-                                        initialScale = 0.35f,
-                                        animationSpec = tween(600)
-                                    )
-                            ) {
-                                Surface(
-                                    modifier = Modifier.size(112.dp),
-                                    shape = RoundedCornerShape(56.dp),
-                                    color = FaccioTeal.copy(alpha = 0.12f),
-                                    border = BorderStroke(2.dp, FaccioTeal.copy(alpha = 0.75f))
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = FaccioTeal,
-                                            modifier = Modifier.size(72.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            AnimatedVisibility(
-                                visible = completionCopyVisible,
-                                enter = fadeIn(animationSpec = tween(450)) +
-                                    slideInVertically(
-                                        initialOffsetY = { height -> height / 3 },
-                                        animationSpec = tween(450)
-                                    )
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        "Tutto fatto",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = FaccioNavy
-                                    )
-                                    Text(
-                                        "Non hai più impegni programmati per oggi.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = FaccioMutedText,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Text(
+                        "${todayTasks.size} attività · ${formatDuration(totalMinutes)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FaccioMutedText
+                    )
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(5.dp),
+                        color = FaccioTeal,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 }
             }
         }
@@ -3918,7 +3767,7 @@ private fun TodayAgenda(
             }
         }
 
-        if (scheduled.isEmpty() && unscheduled.isEmpty() && !dayCompleted) {
+        if (scheduled.isEmpty() && unscheduled.isEmpty()) {
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp)) {
@@ -4208,27 +4057,6 @@ private fun recurrenceLabel(task: TaskItem): String = when (task.recurrence) {
     else -> "Si ripete: ${task.recurrence.lowercase(Locale.ITALIAN)}"
 }
 
-
-private fun isLastPendingScheduledTaskForToday(
-    tasks: List<TaskItem>,
-    completingIndex: Int,
-    now: Long = System.currentTimeMillis()
-): Boolean {
-    val completingTask = tasks.getOrNull(completingIndex) ?: return false
-    val completingTime = completingTask.appointmentTime ?: completingTask.reminderTime
-        ?: return false
-    if (!isSameDay(completingTime, now)) return false
-
-    return tasks.withIndex().none { (index, task) ->
-        if (index == completingIndex || task.completed) {
-            false
-        } else {
-            val time = task.appointmentTime ?: task.reminderTime
-            time != null && isSameDay(time, now)
-        }
-    }
-}
-
 private fun updateTaskCompletion(
     context: Context,
     tasks: MutableList<TaskItem>,
@@ -4281,6 +4109,44 @@ private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
         )
     } while ((next.appointmentTime ?: next.reminderTime ?: Long.MAX_VALUE) <= now)
     return next
+}
+
+private fun recurringScheduleFromNextFutureOccurrence(
+    task: TaskItem,
+    now: Long
+): TaskItem {
+    if (task.recurrence == "Mai") return task
+
+    val originalAppointment = task.appointmentTime
+    if (originalAppointment != null) {
+        val reminderLeadTime = task.reminderTime?.let {
+            originalAppointment - it
+        }
+        val departureLeadTime = task.departureTime?.let {
+            originalAppointment - it
+        }
+        var futureAppointment = originalAppointment
+        var futureReminder = task.reminderTime
+        var futureDeparture = task.departureTime
+
+        while ((futureReminder ?: futureAppointment) <= now) {
+            futureAppointment = shiftRecurringTime(futureAppointment, task)
+            futureReminder = reminderLeadTime?.let { futureAppointment - it }
+            futureDeparture = departureLeadTime?.let { futureAppointment - it }
+        }
+
+        return task.copy(
+            appointmentTime = futureAppointment,
+            reminderTime = futureReminder,
+            departureTime = futureDeparture
+        )
+    }
+
+    var futureReminder = task.reminderTime
+    while (futureReminder != null && futureReminder <= now) {
+        futureReminder = shiftRecurringTime(futureReminder, task)
+    }
+    return task.copy(reminderTime = futureReminder)
 }
 
 private fun updateRoutineStep(
