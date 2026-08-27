@@ -343,6 +343,21 @@ fun FaccioIoApp(
         }
     }
 
+    LaunchedEffect(Unit) {
+        val reopenedRoutines = reopenCompletedRecurringTasks(context, tasks)
+        if (reopenedRoutines > 0) {
+            Toast.makeText(
+                context,
+                if (reopenedRoutines == 1) {
+                    "Routine preparata per la prossima occorrenza"
+                } else {
+                    "$reopenedRoutines routine preparate per le prossime occorrenze"
+                },
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     LaunchedEffect(dayCompletionSignal) {
         if (dayCompletionSignal <= 0) return@LaunchedEffect
         kotlinx.coroutines.delay(2_650)
@@ -1554,6 +1569,7 @@ fun FaccioIoApp(
                         if (restored) {
                             tasks.clear()
                             tasks.addAll(loadTasks(context))
+                            reopenCompletedRecurringTasks(context, tasks)
                             customRoutineTemplates.clear()
                             customRoutineTemplates.addAll(loadCustomRoutineTemplates(context))
                             onOpenSetup()
@@ -4515,6 +4531,34 @@ private fun isLastPendingScheduledTaskForToday(
             time != null && isSameDay(time, now)
         }
     }
+}
+
+private fun reopenCompletedRecurringTasks(
+    context: Context,
+    tasks: MutableList<TaskItem>,
+    now: Long = System.currentTimeMillis()
+): Int {
+    var reopenedCount = 0
+    tasks.indices.forEach { index ->
+        val task = tasks[index]
+        if (!task.completed || task.recurrence == "Mai") return@forEach
+
+        cancelReminder(context, task)
+        cancelDepartureReminder(context, task)
+        task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
+
+        val next = nextRecurringOccurrence(task, now)
+        next.reminderTime?.let {
+            scheduleReminder(context, next.title, it, next.alarmEnabled)
+        }
+        next.departureTime?.let {
+            scheduleReminder(context, "È ora di partire: ${next.title}", it)
+        }
+        tasks[index] = next
+        reopenedCount++
+    }
+    if (reopenedCount > 0) saveTasks(context, tasks)
+    return reopenedCount
 }
 
 private fun updateTaskCompletion(
