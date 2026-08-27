@@ -399,17 +399,29 @@ fun FaccioIoApp(
     }
 
     val normalizedSearch = taskSearchQuery.trim().lowercase(Locale.ITALIAN)
-    val visibleTasks = tasks.withIndex().filter { indexedTask ->
-        val task = indexedTask.value
-        (categoryFilter == "Tutte" || task.category == categoryFilter) &&
-            (priorityFilter == "Tutte" || task.priority == priorityFilter) &&
-            (
-                normalizedSearch.isEmpty() ||
-                    task.title.lowercase(Locale.ITALIAN).contains(normalizedSearch) ||
-                    task.location.orEmpty().lowercase(Locale.ITALIAN).contains(normalizedSearch) ||
-                    task.category.lowercase(Locale.ITALIAN).contains(normalizedSearch)
-                )
-    }
+    val visibleTasks = tasks.withIndex()
+        .filter { indexedTask ->
+            val task = indexedTask.value
+            (categoryFilter == "Tutte" || task.category == categoryFilter) &&
+                (priorityFilter == "Tutte" || task.priority == priorityFilter) &&
+                (
+                    normalizedSearch.isEmpty() ||
+                        task.title.lowercase(Locale.ITALIAN).contains(normalizedSearch) ||
+                        task.location.orEmpty().lowercase(Locale.ITALIAN).contains(normalizedSearch) ||
+                        task.category.lowercase(Locale.ITALIAN).contains(normalizedSearch)
+                    )
+        }
+        .sortedWith(
+            compareBy<IndexedValue<TaskItem>> {
+                (it.value.appointmentTime ?: it.value.reminderTime) == null
+            }.thenBy {
+                it.value.appointmentTime ?: it.value.reminderTime ?: Long.MAX_VALUE
+            }.thenBy {
+                priorityOrder(it.value.priority)
+            }.thenBy {
+                it.index
+            }
+        )
 
     fun openShoppingList(index: Int) {
         val task = tasks.getOrNull(index) ?: return
