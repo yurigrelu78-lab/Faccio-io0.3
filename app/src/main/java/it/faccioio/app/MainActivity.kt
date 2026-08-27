@@ -188,6 +188,7 @@ internal const val TASK_PREFS = "faccio_io_tasks"
 internal const val TASKS_KEY = "saved_tasks"
 private const val CLEANUP_PROMPT_PREFS = "faccio_io_cleanup_prompt"
 private const val CLEANUP_PROMPT_HANDLED_DATE_KEY = "handled_date"
+private const val PERSONAL_PLACES_PREFS = "faccio_io_personal_places"
 private val TASK_CATEGORIES = listOf("Casa", "Lavoro", "Salute", "Personale")
 private val TASK_PRIORITIES = listOf("Bassa", "Media", "Alta")
 private val TASK_RECURRENCES = listOf(
@@ -219,6 +220,22 @@ private fun saveCleanupPromptHandledDate(context: Context, dateKey: String) {
     context.getSharedPreferences(CLEANUP_PROMPT_PREFS, Context.MODE_PRIVATE)
         .edit()
         .putString(CLEANUP_PROMPT_HANDLED_DATE_KEY, dateKey)
+        .apply()
+}
+
+private fun loadPersonalPlace(context: Context, name: String): ResolvedPlace? {
+    val prefs = context.getSharedPreferences(PERSONAL_PLACES_PREFS, Context.MODE_PRIVATE)
+    val address = prefs.getString("${name}_address", null) ?: return null
+    val latitude = prefs.getString("${name}_latitude", null)?.toDoubleOrNull() ?: return null
+    val longitude = prefs.getString("${name}_longitude", null)?.toDoubleOrNull() ?: return null
+    return ResolvedPlace(address, latitude, longitude)
+}
+
+private fun savePersonalPlace(context: Context, name: String, place: ResolvedPlace) {
+    context.getSharedPreferences(PERSONAL_PLACES_PREFS, Context.MODE_PRIVATE).edit()
+        .putString("${name}_address", place.address)
+        .putString("${name}_latitude", place.latitude.toString())
+        .putString("${name}_longitude", place.longitude.toString())
         .apply()
 }
 
@@ -315,6 +332,13 @@ fun FaccioIoApp(
     var newShoppingItem by rememberSaveable { mutableStateOf("") }
     val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
     var showHelpGuide by rememberSaveable { mutableStateOf(false) }
+    var homePlace by remember { mutableStateOf(loadPersonalPlace(context, "home")) }
+    var workPlace by remember { mutableStateOf(loadPersonalPlace(context, "work")) }
+    var showPersonalPlaces by rememberSaveable { mutableStateOf(false) }
+    var editingPersonalPlace by rememberSaveable { mutableStateOf("Casa") }
+    var personalPlaceQuery by rememberSaveable { mutableStateOf("") }
+    var personalPlaceResult by remember { mutableStateOf<ResolvedPlace?>(null) }
+    var personalPlaceMessage by rememberSaveable { mutableStateOf("") }
     var conflictToConfirm by remember { mutableStateOf<ScheduleConflict?>(null) }
     var pendingConflictAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showCustomRoutineEditor by rememberSaveable { mutableStateOf(false) }
@@ -1090,6 +1114,24 @@ fun FaccioIoApp(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Luoghi personali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = FaccioNavy)
+                        Text("Salva Casa e Lavoro per usarli rapidamente nelle attività.", style = MaterialTheme.typography.bodyMedium, color = FaccioMutedText)
+                        OutlinedButton(onClick = { showPersonalPlaces = true }) {
+                            Text("Configura luoghi")
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                         Box(
                             modifier = Modifier
@@ -1525,7 +1567,16 @@ fun FaccioIoApp(
             confirmButton = {
                 Button(
                     onClick = {
-                        val parsed = parseAppointment(assistantText)
+                        val rawParsed = parseAppointment(assistantText)
+                        val lowerAssistant = assistantText.lowercase(Locale.ITALIAN)
+                        val personalMatch = when {
+                            Regex("\\b(casa|a casa|torn.* casa)\\b").containsMatchIn(lowerAssistant) -> homePlace
+                            Regex("\\b(lavoro|al lavoro|ufficio)\\b").containsMatchIn(lowerAssistant) -> workPlace
+                            else -> null
+                        }
+                        val parsed = rawParsed?.copy(
+                            location = personalMatch?.address ?: rawParsed.location
+                        )
                         if (parsed == null) {
                             Toast.makeText(
                                 context,
@@ -3139,6 +3190,30 @@ fun FaccioIoApp(
                     }
                     Text("Luogo", fontWeight = FontWeight.SemiBold)
                     run {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Casa" to homePlace, "Lavoro" to workPlace).forEach { (label, place) ->
+                                OutlinedButton(
+                                    onClick = {
+                                        if (place == null) {
+                                            editingPersonalPlace = label
+                                            personalPlaceQuery = ""
+                                            personalPlaceResult = null
+                                            personalPlaceMessage = ""
+                                            showPersonalPlaces = true
+                                        } else {
+                                            taskLocationQuery = label
+                                            taskResolvedPlace = place
+                                            taskPlaceMessage = "Luogo salvato: ${place.address}"
+                                            if (taskActivityTime == null) taskArrivalEnabled = true
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text(label) }
+                            }
+                        }
                         OutlinedTextField(
                             value = taskLocationQuery,
                             onValueChange = {
@@ -3352,6 +3427,76 @@ fun FaccioIoApp(
             dismissButton = {
                 TextButton(onClick = { resetManualTaskDraft() }) { Text("Annulla") }
             }
+        )
+    }
+
+    if (showPersonalPlaces) {
+        AlertDialog(
+            onDismissRequest = { showPersonalPlaces = false },
+            title = { Text("Luoghi personali") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Casa", "Lavoro").forEach { label ->
+                            OutlinedButton(
+                                onClick = {
+                                    editingPersonalPlace = label
+                                    val place = if (label == "Casa") homePlace else workPlace
+                                    personalPlaceQuery = place?.address.orEmpty()
+                                    personalPlaceResult = place
+                                    personalPlaceMessage = ""
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) { Text(label) }
+                        }
+                    }
+                    Text("Configura $editingPersonalPlace", fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = personalPlaceQuery,
+                        onValueChange = {
+                            personalPlaceQuery = it
+                            personalPlaceResult = null
+                            personalPlaceMessage = ""
+                        },
+                        label = { Text("Indirizzo") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = sentenceKeyboardOptions,
+                        keyboardActions = localDismissKeyboardActions()
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            personalPlaceMessage = "Ricerca in corso…"
+                            resolvePlace(context, personalPlaceQuery) { place ->
+                                personalPlaceResult = place
+                                personalPlaceMessage = if (place == null) "Luogo non trovato" else "Luogo trovato: ${place.address}"
+                            }
+                        },
+                        enabled = personalPlaceQuery.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Verifica sulla mappa") }
+                    if (personalPlaceMessage.isNotBlank()) Text(personalPlaceMessage)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val place = personalPlaceResult
+                        if (place == null) {
+                            Toast.makeText(context, "Verifica prima l’indirizzo", Toast.LENGTH_LONG).show()
+                        } else {
+                            val key = if (editingPersonalPlace == "Casa") "home" else "work"
+                            savePersonalPlace(context, key, place)
+                            if (key == "home") homePlace = place else workPlace = place
+                            showPersonalPlaces = false
+                            Toast.makeText(context, "$editingPersonalPlace salvato", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) { Text("Salva") }
+            },
+            dismissButton = { TextButton(onClick = { showPersonalPlaces = false }) { Text("Annulla") } }
         )
     }
 
