@@ -250,6 +250,11 @@ fun FaccioIoApp(
     var editedReminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     var editedAlarmEnabled by rememberSaveable { mutableStateOf(false) }
     var editedReminderMode by rememberSaveable { mutableStateOf("Nessuno") }
+    var editedLocationQuery by rememberSaveable { mutableStateOf("") }
+    var editedResolvedPlace by remember { mutableStateOf<ResolvedPlace?>(null) }
+    var editedPlaceMessage by rememberSaveable { mutableStateOf("") }
+    var editedArrivalEnabled by rememberSaveable { mutableStateOf(false) }
+    var editedArrivalAlertType by rememberSaveable { mutableStateOf("Promemoria") }
     val editedRoutineSteps = remember { mutableStateListOf<RoutineStep>() }
     var editedRecurrence by rememberSaveable { mutableStateOf("Mai") }
     val editedRecurrenceWeekdays = remember { mutableStateListOf<Int>() }
@@ -1002,6 +1007,18 @@ fun FaccioIoApp(
                                         ?: task.reminderTime?.takeIf { task.recurrence != "Mai" }
                                     editedReminderTime = task.reminderTime
                                     editedAlarmEnabled = task.alarmEnabled
+                                    editedLocationQuery = task.location.orEmpty()
+                                    editedResolvedPlace = if (
+                                        task.location != null &&
+                                        task.latitude != null &&
+                                        task.longitude != null
+                                    ) {
+                                        ResolvedPlace(task.location, task.latitude, task.longitude)
+                                    } else null
+                                    editedPlaceMessage = ""
+                                    editedArrivalEnabled = task.arrivalReminderId != null
+                                    editedArrivalAlertType =
+                                        if (task.arrivalAlarmEnabled) "Sveglia" else "Promemoria"
                                     editedReminderMode = when {
                                         task.reminderTime == null -> "Nessuno"
                                         task.appointmentTime == null && task.recurrence != "Mai" ->
@@ -3364,43 +3381,53 @@ fun FaccioIoApp(
                             onValueSelected = { editedCategory = it },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        val isPersonalRoutine = task.routineSteps.isNotEmpty() ||
-                            task.recurrence != "Mai" || task.reminderTime != null
-                        if (isPersonalRoutine || task.appointmentTime != null) {
-                            OutlinedButton(
-                                onClick = {
-                                    showDateTimePicker(
-                                        context,
-                                        editedAppointmentTime
-                                            ?: (System.currentTimeMillis() + 60L * 60L * 1000L)
-                                    ) { selectedTime ->
-                                        val oldReminderTime = task.reminderTime
-                                        val oldLeadTime = if (
-                                            oldReminderTime != null && task.appointmentTime != null
-                                        ) {
-                                            (task.appointmentTime - oldReminderTime)
-                                                .takeIf { it > 0L }
-                                                ?: 24L * 60L * 60L * 1000L
-                                        } else {
-                                            null
-                                        }
-                                        editedAppointmentTime = selectedTime
-                                        editedReminderTime = when (editedReminderMode) {
-                                            "All’ora esatta" -> selectedTime
-                                            "Personalizzato" -> oldLeadTime?.let { selectedTime - it }
-                                                ?: editedReminderTime
-                                            else -> null
-                                        }
+                        Text("Quando", fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(
+                            onClick = {
+                                showDateTimePicker(
+                                    context,
+                                    editedAppointmentTime
+                                        ?: (System.currentTimeMillis() + 60L * 60L * 1000L)
+                                ) { selectedTime ->
+                                    val oldReminderTime = task.reminderTime
+                                    val oldLeadTime = if (
+                                        oldReminderTime != null && task.appointmentTime != null
+                                    ) {
+                                        (task.appointmentTime - oldReminderTime)
+                                            .takeIf { it > 0L }
+                                            ?: 24L * 60L * 60L * 1000L
+                                    } else null
+                                    editedAppointmentTime = selectedTime
+                                    if (editedReminderMode == "Nessuno") {
+                                        editedReminderMode = "All’ora esatta"
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    editedAppointmentTime?.let {
-                                        "Routine: ${formatReminderTime(it)}"
-                                    } ?: "Aggiungi data e ora alla routine"
-                                )
-                            }
+                                    editedReminderTime = when (editedReminderMode) {
+                                        "All’ora esatta" -> selectedTime
+                                        "Personalizzato" -> oldLeadTime?.let { selectedTime - it }
+                                            ?: editedReminderTime
+                                        else -> null
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                editedAppointmentTime?.let {
+                                    "Attività: ${formatReminderTime(it)}"
+                                } ?: "Aggiungi data e ora (facoltativo)"
+                            )
+                        }
+                        if (editedAppointmentTime != null) {
+                            TextButton(
+                                onClick = {
+                                    editedAppointmentTime = null
+                                    editedReminderTime = null
+                                    editedReminderMode = "Nessuno"
+                                    if (editedLocationQuery.isNotBlank()) {
+                                        editedArrivalEnabled = true
+                                    }
+                                }
+                            ) { Text("Rimuovi data e ora") }
                             SelectionMenu(
                                 label = "Quando avvisare",
                                 selectedValue = editedReminderMode,
@@ -3448,6 +3475,88 @@ fun FaccioIoApp(
                             onValueSelected = { editedPriority = it },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        Text("Luogo", fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = editedLocationQuery,
+                            onValueChange = {
+                                editedLocationQuery = it
+                                editedResolvedPlace = null
+                                editedPlaceMessage = ""
+                                if (it.isNotBlank() && editedAppointmentTime == null) {
+                                    editedArrivalEnabled = true
+                                } else if (it.isBlank()) {
+                                    editedArrivalEnabled = false
+                                }
+                            },
+                            label = { Text("Luogo o indirizzo (facoltativo)") },
+                            keyboardOptions = sentenceKeyboardOptions,
+                            keyboardActions = localDismissKeyboardActions(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                if (editedLocationQuery.isBlank()) return@OutlinedButton
+                                editedPlaceMessage = "Ricerca in corso…"
+                                resolvePlace(context, editedLocationQuery) { place ->
+                                    editedResolvedPlace = place
+                                    editedPlaceMessage = if (place == null) {
+                                        "Luogo non trovato"
+                                    } else {
+                                        "Luogo trovato: ${place.address}"
+                                    }
+                                }
+                            },
+                            enabled = editedLocationQuery.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Cerca luogo") }
+                        if (editedPlaceMessage.isNotBlank()) {
+                            Text(editedPlaceMessage, style = MaterialTheme.typography.bodySmall)
+                        }
+                        editedResolvedPlace?.let { place ->
+                            TextButton(
+                                onClick = {
+                                    openPlaceOnMap(
+                                        context,
+                                        place.address,
+                                        place.latitude,
+                                        place.longitude
+                                    )
+                                }
+                            ) { Text("Controlla sulla mappa") }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Avvisami quando arrivo", fontWeight = FontWeight.SemiBold)
+                                if (
+                                    editedLocationQuery.isNotBlank() &&
+                                    editedAppointmentTime == null
+                                ) {
+                                    Text(
+                                        "Attivato automaticamente perché non hai indicato data e ora.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioMutedText
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = editedArrivalEnabled,
+                                onCheckedChange = { editedArrivalEnabled = it },
+                                enabled = editedLocationQuery.isNotBlank()
+                            )
+                        }
+                        if (editedArrivalEnabled) {
+                            SelectionMenu(
+                                label = "Avviso all’arrivo",
+                                selectedValue = editedArrivalAlertType,
+                                values = listOf("Promemoria", "Sveglia"),
+                                onValueSelected = { editedArrivalAlertType = it },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                         SelectionMenu(
                             label = "Ripetizione",
                             selectedValue = editedRecurrence,
@@ -3584,8 +3693,7 @@ fun FaccioIoApp(
                                     return@TextButton
                                 }
                                 val now = System.currentTimeMillis()
-                                val rawAppointmentTime =
-                                    editedAppointmentTime ?: task.appointmentTime
+                                val rawAppointmentTime = editedAppointmentTime
                                 val rawReminderTime = when (editedReminderMode) {
                                     "Nessuno" -> null
                                     "All’ora esatta" -> rawAppointmentTime
@@ -3627,6 +3735,24 @@ fun FaccioIoApp(
                                 val reminderChanged =
                                     newReminderTime != task.reminderTime
                                 val titleChanged = newTitle != task.title
+                                val editedPlace = editedResolvedPlace
+                                val hasPlaceInput = editedLocationQuery.isNotBlank()
+                                if (hasPlaceInput && editedPlace == null) {
+                                    Toast.makeText(
+                                        context,
+                                        "Cerca e verifica prima il luogo",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@TextButton
+                                }
+                                if (editedArrivalEnabled && editedPlace == null) {
+                                    Toast.makeText(
+                                        context,
+                                        "Inserisci e verifica un luogo per l’avviso all’arrivo",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@TextButton
+                                }
 
                                 if (
                                     appointmentChanged &&
@@ -3675,23 +3801,61 @@ fun FaccioIoApp(
                                         task.reminderTime > now
                                     ) cancelReminder(context, task)
 
-                                    tasks[index] = task.copy(
-                                        title = newTitle,
-                                        category = editedCategory,
-                                        priority = editedPriority,
-                                        appointmentTime = newAppointmentTime,
-                                        reminderTime = newReminderTime,
-                                        alarmEnabled = editedAlarmEnabled,
-                                        recurrence = editedRecurrence,
-                                        recurrenceIntervalDays = recurrenceDays,
-                                        recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
-                                        durationMinutes = durationMinutes,
-                                        routineSteps = if (task.routineSteps.isNotEmpty()) newRoutineSteps else task.routineSteps
-                                    )
-                                    saveTasks(context, tasks)
-                                    editingIndex = null
-                                    editedTitle = ""
-                                    Toast.makeText(context, "Attività aggiornata", Toast.LENGTH_SHORT).show()
+                                    val persistEditedTask: (String?) -> Unit = { arrivalId ->
+                                        tasks[index] = task.copy(
+                                            title = newTitle,
+                                            category = editedCategory,
+                                            priority = editedPriority,
+                                            appointmentTime = newAppointmentTime,
+                                            reminderTime = newReminderTime,
+                                            alarmEnabled = editedAlarmEnabled,
+                                            location = editedPlace?.address,
+                                            latitude = editedPlace?.latitude,
+                                            longitude = editedPlace?.longitude,
+                                            arrivalReminderId = arrivalId,
+                                            arrivalAlarmEnabled = editedArrivalEnabled &&
+                                                editedArrivalAlertType == "Sveglia",
+                                            recurrence = editedRecurrence,
+                                            recurrenceIntervalDays = recurrenceDays,
+                                            recurrenceWeekdays = if (editedRecurrence == "Personalizzata") editedRecurrenceWeekdays.toList() else emptyList(),
+                                            durationMinutes = durationMinutes,
+                                            routineSteps = if (task.routineSteps.isNotEmpty()) newRoutineSteps else task.routineSteps
+                                        )
+                                        saveTasks(context, tasks)
+                                        editingIndex = null
+                                        editedTitle = ""
+                                        Toast.makeText(context, "Attività aggiornata", Toast.LENGTH_SHORT).show()
+                                    }
+                                    if (editedArrivalEnabled) {
+                                        if (!ensureLocationPermissions(context)) return@save
+                                        val newArrivalId =
+                                            "arrival_${System.currentTimeMillis()}_${newTitle.hashCode()}"
+                                        registerArrivalGeofence(
+                                            context,
+                                            newArrivalId,
+                                            newTitle,
+                                            editedPlace!!.latitude,
+                                            editedPlace.longitude
+                                        ) { ok ->
+                                            if (ok) {
+                                                task.arrivalReminderId?.let {
+                                                    removeArrivalGeofence(context, it)
+                                                }
+                                                persistEditedTask(newArrivalId)
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Attivazione del luogo non riuscita",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
+                                    } else {
+                                        task.arrivalReminderId?.let {
+                                            removeArrivalGeofence(context, it)
+                                        }
+                                        persistEditedTask(null)
+                                    }
                                 }
                                 val conflict = findScheduleConflict(
                                     tasks = tasks,
