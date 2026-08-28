@@ -26,6 +26,16 @@ class AppointmentParserTest {
     }
 
     @Test
+    fun recognizesArrivalClauseAfterTheReminderText() {
+        assertEquals(
+            PersonalArrivalCommand("work", "Parlare con Francesco"),
+            parsePersonalArrivalCommand(
+                "Ricordarsi di parlare con Francesco quando arrivo al lavoro"
+            )
+        )
+    }
+
+    @Test
     fun ignoresOrdinaryMentionsOfHomeAndWork() {
         assertNull(parsePersonalArrivalCommand("Domani lavoro da casa alle 9"))
     }
