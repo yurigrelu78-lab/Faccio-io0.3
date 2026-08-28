@@ -1583,6 +1583,7 @@ fun FaccioIoApp(
                         } else if (personalCommand != null) {
                             val listKind = suggestedListKind("${personalCommand.title} $assistantText")
                             pendingTask = personalCommand.title
+                            newTask = personalCommand.title
                             pendingCategory = suggestAppointmentCategory(personalCommand.title)
                             pendingPriority = suggestAppointmentPriority(personalCommand.title)
                             taskReminderMode = "Quando arrivo"
@@ -1607,6 +1608,7 @@ fun FaccioIoApp(
                                 "${parsed.title} ${parsed.location.orEmpty()} $assistantText"
                             )
                             pendingTask = parsed.title
+                            newTask = parsed.title
                             pendingCategory = suggestAppointmentCategory(parsed.title)
                             pendingPriority = suggestAppointmentPriority(parsed.title)
                             taskReminderMode = "Quando arrivo"
