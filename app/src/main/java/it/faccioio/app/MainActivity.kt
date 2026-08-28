@@ -80,9 +80,16 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+const val EXTRA_START_WIDGET_VOICE = "start_widget_voice"
+
 class MainActivity : ComponentActivity() {
+    private var widgetVoiceRequest by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.getBooleanExtra(EXTRA_START_WIDGET_VOICE, false)) {
+            widgetVoiceRequest++
+        }
         createReminderChannel()
 
         setContent {
@@ -110,6 +117,7 @@ class MainActivity : ComponentActivity() {
                         FaccioIoApp(
                             onOpenSetup = { showSetup = true },
                             themeMode = themeMode,
+                            widgetVoiceRequest = widgetVoiceRequest,
                             onThemeModeChange = { selectedMode ->
                                 saveThemeMode(this@MainActivity, selectedMode)
                                 themeMode = selectedMode
@@ -118,6 +126,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_START_WIDGET_VOICE, false)) {
+            widgetVoiceRequest++
         }
     }
 
@@ -243,6 +259,7 @@ private fun savePersonalPlace(context: Context, name: String, place: ResolvedPla
 fun FaccioIoApp(
     onOpenSetup: () -> Unit = {},
     themeMode: String = THEME_SYSTEM,
+    widgetVoiceRequest: Int = 0,
     onThemeModeChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -364,6 +381,25 @@ fun FaccioIoApp(
             ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             ?.firstOrNull()
         if (!spokenText.isNullOrBlank()) assistantText = spokenText
+    }
+
+    LaunchedEffect(widgetVoiceRequest) {
+        if (widgetVoiceRequest <= 0) return@LaunchedEffect
+        assistantText = ""
+        assistantResult = null
+        resolvedPlace = null
+        placeLookupMessage = ""
+        showAssistant = true
+        val voiceIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "it-IT")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Dimmi cosa devo ricordare")
+        }
+        try {
+            voiceLauncher.launch(voiceIntent)
+        } catch (_: Exception) {
+            Toast.makeText(context, "Riconoscimento vocale non disponibile", Toast.LENGTH_LONG).show()
+        }
     }
 
     val tasks = remember(context) {
