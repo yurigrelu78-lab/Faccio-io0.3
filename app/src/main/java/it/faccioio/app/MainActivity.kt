@@ -495,6 +495,7 @@ fun FaccioIoApp(
         )
         saveTasks(context, tasks)
         if (pendingHasShoppingList) openShoppingList(tasks.lastIndex)
+        assistantText = ""
         newTask = ""
         pendingTask = ""
         selectedCategory = "Personale"
@@ -521,6 +522,7 @@ fun FaccioIoApp(
     }
 
     fun resetManualTaskDraft() {
+        assistantText = ""
         newTask = ""
         pendingTask = ""
         selectedCategory = "Personale"
