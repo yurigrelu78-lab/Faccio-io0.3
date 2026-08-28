@@ -9,6 +9,34 @@ data class ParsedAppointment(
     val location: String?
 )
 
+data class PersonalArrivalCommand(
+    val placeKey: String,
+    val title: String
+)
+
+fun parsePersonalArrivalCommand(input: String): PersonalArrivalCommand? {
+    val normalized = input.trim().replace(Regex("\\s+"), " ")
+    val match = Regex(
+        """\bquando\s+(?:arrivo|torno)\s+(?:a|al|alla|in)\s+(casa|lavoro|ufficio)\b\s*[,;:.!-]*\s*(.*)$""",
+        RegexOption.IGNORE_CASE
+    ).find(normalized) ?: return null
+    val placeKey = when (match.groupValues[1].lowercase(Locale.ITALIAN)) {
+        "casa" -> "home"
+        else -> "work"
+    }
+    val title = match.groupValues[2]
+        .replace(
+            Regex("^(?:ricordami|ricordare|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
+            ""
+        )
+        .trim(' ', ',', '.', '-', ':', ';')
+        .replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase(Locale.ITALIAN) else it.toString()
+        }
+    if (title.isBlank()) return null
+    return PersonalArrivalCommand(placeKey, title)
+}
+
 fun parseAppointment(
     input: String,
     now: Calendar = Calendar.getInstance()
