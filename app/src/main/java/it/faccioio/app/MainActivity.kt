@@ -1567,23 +1567,42 @@ fun FaccioIoApp(
             confirmButton = {
                 Button(
                     onClick = {
-                        val rawParsed = parseAppointment(assistantText)
-                        val lowerAssistant = assistantText.lowercase(Locale.ITALIAN)
-                        val personalMatch = when {
-                            Regex("\\b(casa|a casa|torn.* casa)\\b").containsMatchIn(lowerAssistant) -> homePlace
-                            Regex("\\b(lavoro|al lavoro|ufficio)\\b").containsMatchIn(lowerAssistant) -> workPlace
+                        val personalCommand = parsePersonalArrivalCommand(assistantText)
+                        val configuredPersonalPlace = when (personalCommand?.placeKey) {
+                            "home" -> homePlace
+                            "work" -> workPlace
                             else -> null
                         }
-                        val parsed = rawParsed?.copy(
-                            location = personalMatch?.address ?: rawParsed.location
-                        )
-                        if (parsed == null) {
+                        if (personalCommand != null && configuredPersonalPlace == null) {
+                            val label = if (personalCommand.placeKey == "home") "Casa" else "Lavoro"
+                            Toast.makeText(
+                                context,
+                                "$label non è configurato. Salvalo prima in Strumenti → Luoghi personali.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else if (personalCommand != null) {
+                            val listKind = suggestedListKind("${personalCommand.title} $assistantText")
+                            pendingTask = personalCommand.title
+                            pendingCategory = suggestAppointmentCategory(personalCommand.title)
+                            pendingPriority = suggestAppointmentPriority(personalCommand.title)
+                            taskReminderMode = "Quando arrivo"
+                            taskLocationQuery = if (personalCommand.placeKey == "home") "Casa" else "Lavoro"
+                            taskResolvedPlace = configuredPersonalPlace
+                            taskPlaceMessage = "Luogo salvato: ${configuredPersonalPlace!!.address}"
+                            taskArrivalEnabled = true
+                            pendingHasShoppingList = false
+                            pendingListSuggestionKind = listKind
+                            showAssistant = false
+                            if (listKind != null) showShoppingSuggestion = true else showReminderChoice = true
+                        } else {
+                            val parsed = parseAppointment(assistantText)
+                            if (parsed == null) {
                             Toast.makeText(
                                 context,
                                 "Non ho riconosciuto data, ora o descrizione. Controlla il testo dettato.",
                                 Toast.LENGTH_LONG
                             ).show()
-                        } else if (parsed.time == null && !parsed.location.isNullOrBlank()) {
+                            } else if (parsed.time == null && !parsed.location.isNullOrBlank()) {
                             val listKind = suggestedListKind(
                                 "${parsed.title} ${parsed.location.orEmpty()} $assistantText"
                             )
@@ -1610,13 +1629,14 @@ fun FaccioIoApp(
                                     "Luogo trovato: ${place.address}"
                                 }
                             }
-                        } else {
+                            } else {
                             assistantListSuggestionKind = suggestedListKind(
                                 "${parsed.title} ${parsed.location.orEmpty()} $assistantText"
                             )
                             assistantListEnabled = assistantListSuggestionKind != null
                             assistantResult = parsed
                             showAssistant = false
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy),
