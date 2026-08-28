@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_background_dark"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="8dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -55,7 +55,7 @@
         android:id="@+id/widget_accent"
         android:layout_width="34dp"
         android:layout_height="3dp"
-        android:layout_marginTop="9dp"
+        android:layout_marginTop="4dp"
         android:background="@drawable/widget_accent_dark"
         android:text="" />
 
@@ -63,7 +63,7 @@
         android:id="@+id/widget_section_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="9dp"
+        android:layout_marginTop="4dp"
         android:text="PROSSIMO"
         android:textColor="#66CCCC"
         android:textSize="10sp"
@@ -73,9 +73,9 @@
         android:id="@+id/widget_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="1dp"
         android:ellipsize="end"
-        android:maxLines="2"
+        android:maxLines="1"
         android:textColor="#E2E8EE"
         android:textSize="17sp"
         android:textStyle="bold" />
@@ -84,7 +84,7 @@
         android:id="@+id/widget_time"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="1dp"
         android:textColor="#B8C3CC"
         android:textSize="12sp" />
 
@@ -92,12 +92,12 @@
         android:id="@+id/widget_departure"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/widget_departure_badge_dark"
         android:paddingLeft="9dp"
-        android:paddingTop="4dp"
+        android:paddingTop="2dp"
         android:paddingRight="9dp"
-        android:paddingBottom="4dp"
+        android:paddingBottom="2dp"
         android:textColor="#FFE0A8"
         android:textSize="11sp"
         android:textStyle="bold" />
@@ -105,8 +105,8 @@
     <TextView
         android:id="@+id/widget_ai_action"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:layout_marginTop="9dp"
+        android:layout_height="36dp"
+        android:layout_marginTop="4dp"
         android:background="@drawable/widget_ai_button_dark"
         android:gravity="center"
         android:text="🎤  Parla all’IA"
