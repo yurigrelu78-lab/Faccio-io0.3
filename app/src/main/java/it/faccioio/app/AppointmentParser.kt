@@ -16,17 +16,26 @@ data class PersonalArrivalCommand(
 
 fun parsePersonalArrivalCommand(input: String): PersonalArrivalCommand? {
     val normalized = input.trim().replace(Regex("\\s+"), " ")
-    val match = Regex(
-        """\bquando\s+(?:arrivo|torno)\s+(?:a|al|alla|in)\s+(casa|lavoro|ufficio)\b\s*[,;:.!-]*\s*(.*)$""",
+    val leadingMatch = Regex(
+        """^\s*quando\s+(?:arrivo|torno)\s+(?:a|al|alla|in)\s+(casa|lavoro|ufficio)\b\s*[,;:.!-]*\s*(.*)$""",
         RegexOption.IGNORE_CASE
-    ).find(normalized) ?: return null
-    val placeKey = when (match.groupValues[1].lowercase(Locale.ITALIAN)) {
+    ).find(normalized)
+    val trailingMatch = Regex(
+        """^(.*?)\s*[,;:.!-]*\s*\bquando\s+(?:arrivo|torno)\s+(?:a|al|alla|in)\s+(casa|lavoro|ufficio)\b\s*[,;:.!-]*$""",
+        RegexOption.IGNORE_CASE
+    ).find(normalized)
+    val placeText = leadingMatch?.groupValues?.get(1)
+        ?: trailingMatch?.groupValues?.get(2)
+        ?: return null
+    val titleText = leadingMatch?.groupValues?.get(2)
+        ?: trailingMatch!!.groupValues[1]
+    val placeKey = when (placeText.lowercase(Locale.ITALIAN)) {
         "casa" -> "home"
         else -> "work"
     }
-    val title = match.groupValues[2]
+    val title = titleText
         .replace(
-            Regex("^(?:ricordami|ricordare|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
+            Regex("^(?:ricordami|ricordare|ricordarsi|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
             ""
         )
         .trim(' ', ',', '.', '-', ':', ';')
