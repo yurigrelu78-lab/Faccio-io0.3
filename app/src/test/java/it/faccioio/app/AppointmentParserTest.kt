@@ -4,8 +4,24 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Calendar
 
 class AppointmentParserTest {
+    @Test
+    fun recognizesTodayWithPastTime() {
+        val now = Calendar.getInstance().apply {
+            set(2026, Calendar.AUGUST, 29, 9, 21, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val parsed = parseAppointment(
+            "Appuntamento con Valerio oggi alle ore 9:00",
+            now
+        )
+
+        assertEquals("Appuntamento con Valerio", parsed?.title)
+        assertTrue(parsed?.timeInPast == true)
+    }
+
     @Test
     fun recognizesTomorrowWithoutTime() {
         val parsed = parseAppointment("Domani ricordarsi Zippo")
