@@ -2419,6 +2419,58 @@ fun FaccioIoApp(
 
     assistantResult?.let { appointment ->
         val appointmentTime = appointment.time ?: return@let
+        if (appointment.timeInPast) {
+            AlertDialog(
+                onDismissRequest = { resetAssistantDraft() },
+                title = { Text("Orario già trascorso") },
+                text = {
+                    Text(
+                        "L’orario indicato, ${formatReminderTime(appointmentTime)}, " +
+                            "è già trascorso. Puoi cambiarlo oppure salvare " +
+                            "l’attività per oggi senza orario."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDateTimePicker(
+                                context,
+                                System.currentTimeMillis() + 60L * 60L * 1000L
+                            ) { selectedTime ->
+                                if (selectedTime <= System.currentTimeMillis()) {
+                                    Toast.makeText(
+                                        context,
+                                        "Scegli un orario futuro",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    assistantResult = appointment.copy(
+                                        time = selectedTime,
+                                        timeInPast = false
+                                    )
+                                }
+                            }
+                        }
+                    ) { Text("Cambia orario") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                assistantResult = appointment.copy(
+                                    dateOnly = true,
+                                    timeInPast = false
+                                )
+                            }
+                        ) { Text("Salva senza orario") }
+                        TextButton(onClick = { resetAssistantDraft() }) {
+                            Text("Annulla")
+                        }
+                    }
+                }
+            )
+            return@let
+        }
         LaunchedEffect(appointment.time, appointment.title) {
             appointmentReminderOption = if (appointment.dateOnly) {
                 "Nessun promemoria"
