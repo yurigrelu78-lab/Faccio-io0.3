@@ -50,7 +50,11 @@ class AgendaWidgetProvider : AppWidgetProvider() {
                 !task.completed && (
                     task.appointmentTime?.let { sameWidgetDay(it, now) } == true ||
                         task.reminderTime?.let { sameWidgetDay(it, now) } == true ||
-                        (task.appointmentTime == null && task.reminderTime == null)
+                        (
+                            task.appointmentTime == null &&
+                                task.reminderTime == null &&
+                                (task.scheduledDate == null || sameWidgetDay(task.scheduledDate, now))
+                            )
                     )
             }
             val next = tasks
