@@ -6,7 +6,8 @@ import java.util.Locale
 data class ParsedAppointment(
     val title: String,
     val time: Long?,
-    val location: String?
+    val location: String?,
+    val dateOnly: Boolean = false
 )
 
 data class PersonalArrivalCommand(
@@ -79,6 +80,8 @@ fun parseAppointment(
         "\\b(?:il\\s+)?(\\d{1,2})\\s+(${monthNames.joinToString("|")})(?:\\s+(\\d{4}))?\\b",
         RegexOption.IGNORE_CASE
     ).find(lower)
+    val hasRelativeDate = listOf("oggi", "domani", "dopodomani").any { it in lower }
+    val hasRecognizedDate = dateMatch != null || textDateMatch != null || hasRelativeDate
     var absoluteDateWithoutYear = false
     when {
         dateMatch != null -> {
@@ -147,11 +150,23 @@ fun parseAppointment(
     if (locationMatch != null) title = title.replace(locationMatch.value, "", ignoreCase = true)
     title = title
         .replace(Regex("\\b(?:alle|ore)\\b", RegexOption.IGNORE_CASE), "")
+        .replace(
+            Regex("^(?:ricordami|ricordare|ricordarsi|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
+            ""
+        )
         .trim(' ', ',', '.', '-')
         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ITALIAN) else it.toString() }
 
-    if (title.isBlank() || (timeMatch == null && location.isNullOrBlank())) return null
-    return ParsedAppointment(title, timeMatch?.let { result.timeInMillis }, location)
+    if (
+        title.isBlank() ||
+        (timeMatch == null && location.isNullOrBlank() && !hasRecognizedDate)
+    ) return null
+    return ParsedAppointment(
+        title = title,
+        time = if (timeMatch != null || hasRecognizedDate) result.timeInMillis else null,
+        location = location,
+        dateOnly = hasRecognizedDate && timeMatch == null
+    )
 }
 
 private fun normalizeSpokenTime(text: String): String {
