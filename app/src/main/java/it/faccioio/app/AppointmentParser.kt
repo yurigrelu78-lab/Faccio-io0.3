@@ -7,7 +7,8 @@ data class ParsedAppointment(
     val title: String,
     val time: Long?,
     val location: String?,
-    val dateOnly: Boolean = false
+    val dateOnly: Boolean = false,
+    val timeInPast: Boolean = false
 )
 
 data class PersonalArrivalCommand(
@@ -130,7 +131,6 @@ fun parseAppointment(
         if (absoluteDateWithoutYear && result.timeInMillis <= now.timeInMillis) {
             result.add(Calendar.YEAR, 1)
         }
-        if (result.timeInMillis <= now.timeInMillis && "oggi" in lower) return null
     }
 
     val locationMatch = Regex(
@@ -165,7 +165,10 @@ fun parseAppointment(
         title = title,
         time = if (timeMatch != null || hasRecognizedDate) result.timeInMillis else null,
         location = location,
-        dateOnly = hasRecognizedDate && timeMatch == null
+        dateOnly = hasRecognizedDate && timeMatch == null,
+        timeInPast = timeMatch != null &&
+            result.timeInMillis <= now.timeInMillis &&
+            "oggi" in lower
     )
 }
 
