@@ -5084,7 +5084,7 @@ private fun recurringScheduleFromNextFutureOccurrence(
 
     val originalScheduledDate = task.scheduledDate
     if (originalScheduledDate != null) {
-        var futureScheduledDate = originalScheduledDate
+        var futureScheduledDate: Long = originalScheduledDate
         if (forceNextOccurrence) {
             futureScheduledDate = shiftRecurringTime(futureScheduledDate, task)
         }
