@@ -2,9 +2,26 @@ package it.faccioio.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppointmentParserTest {
+    @Test
+    fun recognizesTomorrowWithoutTime() {
+        val parsed = parseAppointment("Domani ricordarsi Zippo")
+
+        assertEquals("Zippo", parsed?.title)
+        assertTrue(parsed?.dateOnly == true)
+    }
+
+    @Test
+    fun recognizesTodayWithoutTime() {
+        val parsed = parseAppointment("Oggi comprare il pane")
+
+        assertEquals("Comprare il pane", parsed?.title)
+        assertTrue(parsed?.dateOnly == true)
+    }
+
     @Test
     fun recognizesWorkArrivalWithoutDateOrAddress() {
         assertEquals(
