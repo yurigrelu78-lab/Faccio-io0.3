@@ -12,8 +12,8 @@ android {
         applicationId = "it.faccioio.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.3.15"
+        versionCode = 20
+        versionName = "0.3.16"
     }
 
     signingConfigs {
