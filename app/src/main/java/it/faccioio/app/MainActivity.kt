@@ -171,6 +171,7 @@ data class TaskItem(
     val category: String = "Personale",
     val priority: String = "Media",
     val appointmentTime: Long? = null,
+    val scheduledDate: Long? = null,
     val location: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -431,7 +432,9 @@ fun FaccioIoApp(
             task.completed &&
                 task.recurrence == "Mai" &&
                 task.routineSteps.isEmpty() &&
-                (task.appointmentTime ?: task.reminderTime)?.let { isSameDay(it, System.currentTimeMillis()) } == true
+                (task.appointmentTime ?: task.reminderTime ?: task.scheduledDate)?.let {
+                    isSameDay(it, System.currentTimeMillis())
+                } == true
         }
         if (hasCompletedOneOffTasksToday && cleanupPromptHandledDate != todayKey) {
             showDailyCleanupPrompt = true
@@ -478,9 +481,9 @@ fun FaccioIoApp(
         }
         .sortedWith(
             compareBy<IndexedValue<TaskItem>> {
-                (it.value.appointmentTime ?: it.value.reminderTime) == null
+                (it.value.appointmentTime ?: it.value.reminderTime ?: it.value.scheduledDate) == null
             }.thenBy {
-                it.value.appointmentTime ?: it.value.reminderTime ?: Long.MAX_VALUE
+                it.value.appointmentTime ?: it.value.reminderTime ?: it.value.scheduledDate ?: Long.MAX_VALUE
             }.thenBy {
                 priorityOrder(it.value.priority)
             }.thenBy {
@@ -935,6 +938,13 @@ fun FaccioIoApp(
                                 task.appointmentTime?.let { appointmentTime ->
                                     Text(
                                         text = "Appuntamento: ${formatReminderTime(appointmentTime)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = FaccioNavy
+                                    )
+                                }
+                                task.scheduledDate?.let { scheduledDate ->
+                                    Text(
+                                        text = "Giorno: ${formatDateOnly(scheduledDate)} · senza orario",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = FaccioNavy
                                     )
@@ -2410,7 +2420,11 @@ fun FaccioIoApp(
     assistantResult?.let { appointment ->
         val appointmentTime = appointment.time ?: return@let
         LaunchedEffect(appointment.time, appointment.title) {
-            appointmentReminderOption = "All’ora esatta"
+            appointmentReminderOption = if (appointment.dateOnly) {
+                "Nessun promemoria"
+            } else {
+                "All’ora esatta"
+            }
             customAppointmentReminderTime = null
             assistantCategory = suggestAppointmentCategory(appointment.title)
             assistantPriority = suggestAppointmentPriority(appointment.title)
@@ -2447,7 +2461,26 @@ fun FaccioIoApp(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("Attività: ${appointment.title}")
-                    Text("Quando: ${formatReminderTime(appointmentTime)}")
+                    Text(
+                        if (appointment.dateOnly) {
+                            "Quando: ${formatDateOnly(appointmentTime)} · senza orario"
+                        } else {
+                            "Quando: ${formatReminderTime(appointmentTime)}"
+                        }
+                    )
+                    if (appointment.dateOnly) {
+                        OutlinedButton(
+                            onClick = {
+                                showDateTimePicker(context, appointmentTime) { selectedTime ->
+                                    assistantResult = appointment.copy(
+                                        time = selectedTime,
+                                        dateOnly = false
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Aggiungi un orario") }
+                    }
                     Text(
                         "Luogo: ${resolvedPlace?.address ?: appointment.location ?: "non indicato"}"
                     )
@@ -2532,6 +2565,7 @@ fun FaccioIoApp(
                         onSelected = { assistantDuration = it },
                         onCustomChanged = { assistantCustomDuration = it }
                     )
+                    if (!appointment.dateOnly) {
                     Text("Partenza consigliata", fontWeight = FontWeight.SemiBold)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SelectionMenu("Mezzo", departureTransport, listOf("Auto", "A piedi", "Bicicletta"), { departureTransport = it; departureEstimate = null }, Modifier.weight(1f))
@@ -2618,6 +2652,7 @@ fun FaccioIoApp(
                             )
                         }
                     }
+                    }
                     SelectionMenu(
                         label = "Ripetizione",
                         selectedValue = assistantRecurrence,
@@ -2649,13 +2684,13 @@ fun FaccioIoApp(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val reminderTime = appointmentReminderTime(
+                        val reminderTime = if (appointment.dateOnly) null else appointmentReminderTime(
                             appointmentTime,
                             appointmentReminderOption,
                             customAppointmentReminderTime
                         )
                         val wantsReminder =
-                            appointmentReminderOption != "Nessun promemoria"
+                            !appointment.dateOnly && appointmentReminderOption != "Nessun promemoria"
 
                         if (wantsReminder && reminderTime == null) {
                             Toast.makeText(
@@ -2736,7 +2771,8 @@ fun FaccioIoApp(
                                         } else {
                                             emptyList()
                                         },
-                                        appointmentTime = appointmentTime,
+                                        appointmentTime = appointmentTime.takeUnless { appointment.dateOnly },
+                                        scheduledDate = appointmentTime.takeIf { appointment.dateOnly },
                                         location = resolvedPlace?.address ?: appointment.location,
                                         latitude = resolvedPlace?.latitude,
                                         longitude = resolvedPlace?.longitude,
@@ -2766,7 +2802,7 @@ fun FaccioIoApp(
                         }
                         val conflict = findScheduleConflict(
                             tasks = tasks,
-                            proposedStart = appointmentTime,
+                            proposedStart = appointmentTime.takeUnless { appointment.dateOnly },
                             proposedDurationMinutes = durationMinutes
                         )
                         if (conflict != null) {
@@ -2843,7 +2879,7 @@ fun FaccioIoApp(
                             task.completed &&
                                 task.recurrence == "Mai" &&
                                 task.routineSteps.isEmpty() &&
-                                (task.appointmentTime ?: task.reminderTime)?.let {
+                                (task.appointmentTime ?: task.reminderTime ?: task.scheduledDate)?.let {
                                     isSameDay(it, now)
                                 } == true
                         }
@@ -4012,6 +4048,7 @@ fun FaccioIoApp(
                                             category = editedCategory,
                                             priority = editedPriority,
                                             appointmentTime = newAppointmentTime,
+                                            scheduledDate = if (newAppointmentTime != null) null else task.scheduledDate,
                                             reminderTime = newReminderTime,
                                             alarmEnabled = editedAlarmEnabled,
                                             location = editedPlace?.address,
@@ -4306,7 +4343,12 @@ private fun TodayAgenda(
     }.sortedBy { it.time }
     val visibleScheduled = scheduled.filterNot { it.task.completed }
     val unscheduled = tasks.mapIndexedNotNull { index, task ->
-        if (!task.completed && task.appointmentTime == null && task.reminderTime == null) {
+        if (
+            !task.completed &&
+            task.appointmentTime == null &&
+            task.reminderTime == null &&
+            (task.scheduledDate == null || isSameDay(task.scheduledDate, todayCalendar.timeInMillis))
+        ) {
             index to task
         } else null
     }.sortedWith(
@@ -4901,6 +4943,7 @@ private fun isLastPendingScheduledTaskForToday(
 ): Boolean {
     val completingTask = tasks.getOrNull(completingIndex) ?: return false
     val completingTime = completingTask.appointmentTime ?: completingTask.reminderTime
+        ?: completingTask.scheduledDate
         ?: return false
     if (!isSameDay(completingTime, now)) return false
 
@@ -4908,7 +4951,7 @@ private fun isLastPendingScheduledTaskForToday(
         if (index == completingIndex || task.completed) {
             false
         } else {
-            val time = task.appointmentTime ?: task.reminderTime
+            val time = task.appointmentTime ?: task.reminderTime ?: task.scheduledDate
             time != null && isSameDay(time, now)
         }
     }
@@ -4972,9 +5015,14 @@ private fun updateTaskCompletion(
     }
     tasks[index] = next
     saveTasks(context, tasks)
+    val nextOccurrence = next.appointmentTime ?: next.reminderTime ?: next.scheduledDate
     Toast.makeText(
         context,
-        "Completata. Prossima: ${formatReminderTime(next.appointmentTime ?: next.reminderTime!!)}",
+        if (next.scheduledDate != null && next.appointmentTime == null) {
+            "Completata. Prossima: ${formatDateOnly(next.scheduledDate)}"
+        } else {
+            "Completata. Prossima: ${formatReminderTime(nextOccurrence!!)}"
+        },
         Toast.LENGTH_SHORT
     ).show()
 }
@@ -4990,9 +5038,10 @@ private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
         next = next.copy(
             reminderTime = next.reminderTime?.let { shiftRecurringTime(it, next) },
             appointmentTime = next.appointmentTime?.let { shiftRecurringTime(it, next) },
+            scheduledDate = next.scheduledDate?.let { shiftRecurringTime(it, next) },
             departureTime = next.departureTime?.let { shiftRecurringTime(it, next) }
         )
-    } while ((next.appointmentTime ?: next.reminderTime ?: Long.MAX_VALUE) <= now)
+    } while ((next.appointmentTime ?: next.reminderTime ?: next.scheduledDate ?: Long.MAX_VALUE) <= now)
     return next
 }
 
@@ -5031,6 +5080,18 @@ private fun recurringScheduleFromNextFutureOccurrence(
             reminderTime = futureReminder,
             departureTime = futureDeparture
         )
+    }
+
+    val originalScheduledDate = task.scheduledDate
+    if (originalScheduledDate != null) {
+        var futureScheduledDate = originalScheduledDate
+        if (forceNextOccurrence) {
+            futureScheduledDate = shiftRecurringTime(futureScheduledDate, task)
+        }
+        while (futureScheduledDate <= now) {
+            futureScheduledDate = shiftRecurringTime(futureScheduledDate, task)
+        }
+        return task.copy(scheduledDate = futureScheduledDate)
     }
 
     var futureReminder = task.reminderTime
@@ -5414,6 +5475,10 @@ private fun formatReminderTime(time: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
         .format(Date(time))
 
+private fun formatDateOnly(time: Long): String =
+    SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
+        .format(Date(time))
+
 @Composable
 private fun localDismissKeyboardActions(): KeyboardActions {
     val focusManager = LocalFocusManager.current
@@ -5606,6 +5671,11 @@ internal fun parseTasks(
                 } else {
                     item.optLong("appointmentTime")
                 },
+                scheduledDate = if (item.isNull("scheduledDate")) {
+                    null
+                } else {
+                    item.optLong("scheduledDate")
+                },
                 location = if (item.isNull("location")) {
                     null
                 } else {
@@ -5679,6 +5749,7 @@ internal fun serializeTasks(tasks: List<TaskItem>): String {
                 put("category", task.category)
                 put("priority", task.priority)
                 put("appointmentTime", task.appointmentTime ?: JSONObject.NULL)
+                put("scheduledDate", task.scheduledDate ?: JSONObject.NULL)
                 put("location", task.location ?: JSONObject.NULL)
                 put("latitude", task.latitude ?: JSONObject.NULL)
                 put("longitude", task.longitude ?: JSONObject.NULL)
