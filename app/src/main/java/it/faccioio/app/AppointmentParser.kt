@@ -150,6 +150,7 @@ fun parseAppointment(
     if (locationMatch != null) title = title.replace(locationMatch.value, "", ignoreCase = true)
     title = title
         .replace(Regex("\\b(?:alle|ore)\\b", RegexOption.IGNORE_CASE), "")
+        .trim(' ', ',', '.', '-')
         .replace(
             Regex("^(?:ricordami|ricordare|ricordarsi|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
             ""
