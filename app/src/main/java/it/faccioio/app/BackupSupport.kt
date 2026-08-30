@@ -81,20 +81,40 @@ internal fun applyCompleteBackup(context: Context, payload: BackupPayload): Bool
     false
 }
 
+internal data class AutomationAlarm(
+    val title: String,
+    val time: Long,
+    val isAlarm: Boolean
+)
+
+internal fun futureAutomationAlarms(
+    tasks: List<TaskItem>,
+    now: Long = System.currentTimeMillis()
+): List<AutomationAlarm> = tasks
+    .filter { !it.completed }
+    .flatMap { task ->
+        buildList {
+            task.reminderTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm(task.title, it, task.alarmEnabled))
+            }
+            task.departureTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm("È ora di partire: ${task.title}", it, false))
+            }
+        }
+    }
+
 internal fun restoreAllFutureAutomations(
     context: Context,
     tasks: List<TaskItem> = loadTasks(context)
-) {
-    val now = System.currentTimeMillis()
-    tasks.filter { !it.completed }.forEach { task ->
-        task.reminderTime?.takeIf { it > now }?.let {
-            scheduleReminder(context, task.title, it)
-        }
-        task.departureTime?.takeIf { it > now }?.let {
-            scheduleReminder(context, "È ora di partire: ${task.title}", it)
+): Boolean {
+    var allScheduled = true
+    futureAutomationAlarms(tasks).forEach { alarm ->
+        if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
+            allScheduled = false
         }
     }
     restoreArrivalGeofencesIfAllowed(context, tasks)
+    return allScheduled
 }
 
 private fun restoreArrivalGeofencesIfAllowed(context: Context, tasks: List<TaskItem>) {

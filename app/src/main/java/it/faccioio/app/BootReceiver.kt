@@ -29,19 +29,7 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
-        val now = System.currentTimeMillis()
-        loadTasksForBoot(context)
-            .filter { !it.completed }
-            .flatMap { task ->
-                buildList {
-                    task.reminderTime?.takeIf { it > now }?.let {
-                        add(AlarmToRestore(task.title, it, task.alarmEnabled))
-                    }
-                    task.departureTime?.takeIf { it > now }?.let {
-                        add(AlarmToRestore("È ora di partire: ${task.title}", it, false))
-                    }
-                }
-            }
+        futureAutomationAlarms(loadTasksForBoot(context))
             .forEach { alarm ->
                 val reminderIntent =
                     Intent(context, ReminderReceiver::class.java).apply {
@@ -69,5 +57,3 @@ class BootReceiver : BroadcastReceiver() {
             }
     }
 }
-
-private data class AlarmToRestore(val title: String, val time: Long, val isAlarm: Boolean)

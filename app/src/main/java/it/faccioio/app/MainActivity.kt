@@ -5024,14 +5024,16 @@ private fun reopenCompletedRecurringTasks(
         task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
 
         val next = nextRecurringOccurrence(task, now)
-        next.reminderTime?.let {
-            scheduleReminder(context, next.title, it, next.alarmEnabled)
-        }
-        next.departureTime?.let {
-            scheduleReminder(context, "È ora di partire: ${next.title}", it)
-        }
+        val scheduled = restoreAllFutureAutomations(context, listOf(next))
         tasks[index] = next
         reopenedCount++
+        if (!scheduled) {
+            Toast.makeText(
+                context,
+                "Routine spostata, ma la sveglia non è stata programmata. Controlla i permessi.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
     if (reopenedCount > 0) saveTasks(context, tasks)
     return reopenedCount
@@ -5061,16 +5063,15 @@ private fun updateTaskCompletion(
     task.arrivalReminderId?.let { removeArrivalGeofence(context, it) }
 
     val next = nextRecurringOccurrence(task, System.currentTimeMillis())
-    next.reminderTime?.let { scheduleReminder(context, next.title, it, next.alarmEnabled) }
-    next.departureTime?.let {
-        scheduleReminder(context, "È ora di partire: ${next.title}", it)
-    }
+    val scheduled = restoreAllFutureAutomations(context, listOf(next))
     tasks[index] = next
     saveTasks(context, tasks)
     val nextOccurrence = next.appointmentTime ?: next.reminderTime ?: next.scheduledDate
     Toast.makeText(
         context,
-        if (next.scheduledDate != null && next.appointmentTime == null) {
+        if (!scheduled) {
+            "Routine spostata, ma la sveglia non è stata programmata. Controlla i permessi."
+        } else if (next.scheduledDate != null && next.appointmentTime == null) {
             "Completata. Prossima: ${formatDateOnly(next.scheduledDate)}"
         } else {
             "Completata. Prossima: ${formatReminderTime(nextOccurrence!!)}"
@@ -5079,7 +5080,7 @@ private fun updateTaskCompletion(
     ).show()
 }
 
-private fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
+internal fun nextRecurringOccurrence(task: TaskItem, now: Long): TaskItem {
     var next = task.copy(
         completed = false,
         arrivalReminderId = null,
