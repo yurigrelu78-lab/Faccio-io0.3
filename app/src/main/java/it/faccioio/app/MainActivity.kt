@@ -411,6 +411,7 @@ fun FaccioIoApp(
 
     LaunchedEffect(Unit) {
         val reopenedRoutines = reopenCompletedRecurringTasks(context, tasks)
+        val automationsRestored = restoreAllFutureAutomations(context, tasks)
         if (reopenedRoutines > 0) {
             Toast.makeText(
                 context,
@@ -420,6 +421,13 @@ fun FaccioIoApp(
                     "$reopenedRoutines routine preparate per le prossime occorrenze"
                 },
                 Toast.LENGTH_SHORT
+            ).show()
+        }
+        if (!automationsRestored) {
+            Toast.makeText(
+                context,
+                "Controlla il permesso Sveglie e promemoria",
+                Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -930,7 +938,7 @@ fun FaccioIoApp(
                                 }
                                 task.reminderTime?.let { selectedTime ->
                                     Text(
-                                        text = "Promemoria: ${formatReminderTime(selectedTime)}",
+                                        text = "${if (task.alarmEnabled) "Sveglia" else "Promemoria"}: ${formatReminderTime(selectedTime)}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = FaccioTeal
                                     )
@@ -5475,11 +5483,26 @@ internal fun scheduleReminder(
     )
 
     return try {
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            reminderTime,
-            pendingIntent
-        )
+        if (isAlarm) {
+            val showAlarmIntent = PendingIntent.getActivity(
+                context,
+                requestCode xor 0x5A17,
+                Intent(context, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(reminderTime, showAlarmIntent),
+                pendingIntent
+            )
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                reminderTime,
+                pendingIntent
+            )
+        }
         true
     } catch (_: SecurityException) {
         Toast.makeText(

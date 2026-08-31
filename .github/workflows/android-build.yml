@@ -6,7 +6,6 @@ on:
       - main
       - feature/sveglia-attivita
       - codex/luogo-arrivo-sveglia
-      - codex/pulizia-fine-giornata
   pull_request:
     branches:
       - main
