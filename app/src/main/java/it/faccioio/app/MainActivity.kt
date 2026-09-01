@@ -430,6 +430,15 @@ fun FaccioIoApp(
                 Toast.LENGTH_LONG
             ).show()
         }
+        val missingAlarms = futureAutomationAlarms(tasks)
+            .filter { it.isAlarm && !isReminderPending(context, it.title, it.time) }
+        if (missingAlarms.isNotEmpty()) {
+            Toast.makeText(
+                context,
+                "${missingAlarms.size} sveglie non risultano registrate. Apri Configurazione e controlla i permessi.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     LaunchedEffect(dayCompletionSignal) {
@@ -5503,6 +5512,7 @@ internal fun scheduleReminder(
                 pendingIntent
             )
         }
+        markReminderScheduled(context, taskTitle, reminderTime, isAlarm)
         true
     } catch (_: SecurityException) {
         Toast.makeText(
@@ -5528,6 +5538,7 @@ internal fun cancelReminder(context: Context, task: TaskItem) {
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     alarmManager.cancel(pendingIntent)
     pendingIntent.cancel()
+    clearScheduledReminder(context, task.title, reminderTime)
 }
 
 internal fun cancelDepartureReminder(context: Context, task: TaskItem) {
@@ -5546,6 +5557,17 @@ internal fun cancelDepartureReminder(context: Context, task: TaskItem) {
 
 internal fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
     (reminderTime xor taskTitle.hashCode().toLong()).hashCode()
+
+internal fun isReminderPending(
+    context: Context,
+    taskTitle: String,
+    reminderTime: Long
+): Boolean = PendingIntent.getBroadcast(
+    context,
+    reminderRequestCode(taskTitle, reminderTime),
+    Intent(context, ReminderReceiver::class.java),
+    PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+) != null
 
 private fun formatReminderTime(time: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())

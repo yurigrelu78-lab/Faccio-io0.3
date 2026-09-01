@@ -1,7 +1,6 @@
 package it.faccioio.app
 
 import android.app.AlarmManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -29,31 +28,10 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
-        futureAutomationAlarms(loadTasksForBoot(context))
-            .forEach { alarm ->
-                val reminderIntent =
-                    Intent(context, ReminderReceiver::class.java).apply {
-                        putExtra("task_title", alarm.title)
-                        putExtra("reminder_time", alarm.time)
-                        putExtra("is_alarm", alarm.isAlarm)
-                    }
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    reminderRequestCode(alarm.title, alarm.time),
-                    reminderIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or
-                        PendingIntent.FLAG_IMMUTABLE
-                )
-
-                try {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        alarm.time,
-                        pendingIntent
-                    )
-                } catch (_: SecurityException) {
-                    return
-                }
+        futureAutomationAlarms(loadTasksForBoot(context)).forEach { alarm ->
+            if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
+                return
             }
+        }
     }
 }

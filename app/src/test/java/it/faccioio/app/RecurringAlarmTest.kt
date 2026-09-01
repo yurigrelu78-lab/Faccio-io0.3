@@ -41,6 +41,38 @@ class RecurringAlarmTest {
         assertTrue(alarms.single().isAlarm)
     }
 
+    @Test
+    fun keepsMultipleAlarmTypesIncludingAnnualRecurrence() {
+        val zone = TimeZone.getTimeZone("Europe/Rome")
+        val now = time(zone, 2026, Calendar.AUGUST, 31, 20, 0)
+        val birthdayTime = time(zone, 2026, Calendar.SEPTEMBER, 1, 7, 0)
+        val routineTime = time(zone, 2026, Calendar.AUGUST, 31, 21, 50)
+        val alarms = futureAutomationAlarms(
+            listOf(
+                TaskItem(
+                    title = "Compleanno Claudia Rossi",
+                    reminderTime = birthdayTime,
+                    appointmentTime = birthdayTime,
+                    alarmEnabled = true,
+                    recurrence = "Ogni anno"
+                ),
+                TaskItem(
+                    title = "Routine della sera",
+                    reminderTime = routineTime,
+                    appointmentTime = routineTime,
+                    alarmEnabled = true,
+                    recurrence = "Personalizzata",
+                    recurrenceWeekdays = listOf(Calendar.MONDAY)
+                )
+            ),
+            now
+        )
+
+        assertEquals(2, alarms.size)
+        assertTrue(alarms.all { it.isAlarm })
+        assertEquals(setOf(birthdayTime, routineTime), alarms.map { it.time }.toSet())
+    }
+
     private fun time(
         zone: TimeZone,
         year: Int,

@@ -13,6 +13,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra("task_title") ?: "Promemoria"
         val reminderTime = intent.getLongExtra("reminder_time", 0L)
         val isAlarm = intent.getBooleanExtra("is_alarm", false)
+        markReminderDelivered(context, title, reminderTime, isAlarm)
         val notificationId = (title.hashCode() xor reminderTime.hashCode())
 
         fun snoozeAction(action: String, label: String): NotificationCompat.Action {
