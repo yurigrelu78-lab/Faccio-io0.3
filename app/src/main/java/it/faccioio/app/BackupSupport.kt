@@ -93,15 +93,47 @@ internal fun futureAutomationAlarms(
 ): List<AutomationAlarm> = tasks
     .filter { !it.completed }
     .flatMap { task ->
+        val futureTask = if (
+            task.recurrence != "Mai" &&
+            (task.reminderTime ?: task.appointmentTime ?: task.scheduledDate)
+                ?.let { it <= now } == true
+        ) {
+            nextRecurringOccurrence(task, now)
+        } else {
+            task
+        }
         buildList {
-            task.reminderTime?.takeIf { it > now }?.let {
-                add(AutomationAlarm(task.title, it, task.alarmEnabled))
+            futureTask.reminderTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm(futureTask.title, it, futureTask.alarmEnabled))
             }
-            task.departureTime?.takeIf { it > now }?.let {
-                add(AutomationAlarm("È ora di partire: ${task.title}", it, false))
+            futureTask.departureTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm("È ora di partire: ${futureTask.title}", it, false))
             }
         }
     }
+
+internal fun scheduleNextRecurringAlarmAfterDelivery(
+    context: Context,
+    title: String,
+    deliveredTime: Long,
+    now: Long = System.currentTimeMillis()
+): Boolean {
+    val deliveredTask = loadTasksForBoot(context).firstOrNull { task ->
+        !task.completed &&
+            task.recurrence != "Mai" &&
+            task.title == title &&
+            task.reminderTime == deliveredTime
+    } ?: return true
+
+    val next = nextRecurringOccurrence(deliveredTask, now.coerceAtLeast(deliveredTime))
+    val nextReminderTime = next.reminderTime ?: return true
+    return scheduleReminder(
+        context = context,
+        taskTitle = next.title,
+        reminderTime = nextReminderTime,
+        isAlarm = next.alarmEnabled
+    )
+}
 
 internal fun restoreAllFutureAutomations(
     context: Context,

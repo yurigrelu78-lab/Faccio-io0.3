@@ -73,6 +73,49 @@ class RecurringAlarmTest {
         assertEquals(setOf(birthdayTime, routineTime), alarms.map { it.time }.toSet())
     }
 
+    @Test
+    fun expiredRecurringRoutineProducesItsNextAlarmWithoutBeingCompleted() {
+        val zone = TimeZone.getTimeZone("Europe/Rome")
+        val sunday = time(zone, 2026, Calendar.AUGUST, 30, 21, 50)
+        val afterSundayAlarm = time(zone, 2026, Calendar.AUGUST, 30, 21, 51)
+        val monday = time(zone, 2026, Calendar.AUGUST, 31, 21, 50)
+        val task = TaskItem(
+            title = "Routine della sera",
+            reminderTime = sunday,
+            appointmentTime = sunday,
+            alarmEnabled = true,
+            recurrence = "Personalizzata",
+            recurrenceWeekdays = listOf(
+                Calendar.SUNDAY,
+                Calendar.MONDAY,
+                Calendar.TUESDAY,
+                Calendar.WEDNESDAY,
+                Calendar.THURSDAY
+            )
+        )
+
+        val alarm = futureAutomationAlarms(listOf(task), afterSundayAlarm).single()
+
+        assertEquals(monday, alarm.time)
+        assertTrue(alarm.isAlarm)
+    }
+
+    @Test
+    fun expiredSingleAlarmIsNeverRepeated() {
+        val zone = TimeZone.getTimeZone("Europe/Rome")
+        val alarmTime = time(zone, 2026, Calendar.AUGUST, 30, 21, 50)
+        val afterAlarm = time(zone, 2026, Calendar.AUGUST, 30, 21, 51)
+        val task = TaskItem(
+            title = "Sveglia singola",
+            reminderTime = alarmTime,
+            appointmentTime = alarmTime,
+            alarmEnabled = true,
+            recurrence = "Mai"
+        )
+
+        assertTrue(futureAutomationAlarms(listOf(task), afterAlarm).isEmpty())
+    }
+
     private fun time(
         zone: TimeZone,
         year: Int,
