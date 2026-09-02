@@ -4483,18 +4483,26 @@ private fun TodayAgenda(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp)
+                ) {
                     Text(
                         text = SimpleDateFormat("EEEE d MMMM", Locale.ITALIAN)
                             .format(Date()).replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = FaccioNavy
+                        color = FaccioNavy,
+                        maxLines = 2
                     )
                     Text("Un passo alla volta.", style = MaterialTheme.typography.bodySmall, color = FaccioMutedText)
                 }
                 FilledTonalButton(
                     onClick = onAddTask,
+                    modifier = Modifier
+                        .widthIn(min = 132.dp)
+                        .heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -4503,7 +4511,11 @@ private fun TodayAgenda(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Aggiungi")
+                    Text(
+                        text = "Aggiungi",
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
         }
