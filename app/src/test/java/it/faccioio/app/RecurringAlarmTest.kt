@@ -116,6 +116,16 @@ class RecurringAlarmTest {
         assertTrue(futureAutomationAlarms(listOf(task), afterAlarm).isEmpty())
     }
 
+    @Test
+    fun savingAnUnchangedFutureAlarmStillRequestsScheduling() {
+        val now = 1_000L
+        val unchangedFutureReminder = 2_000L
+
+        assertTrue(shouldScheduleReminderOnSave(unchangedFutureReminder, now))
+        assertFalse(shouldScheduleReminderOnSave(now, now))
+        assertFalse(shouldScheduleReminderOnSave(null, now))
+    }
+
     private fun time(
         zone: TimeZone,
         year: Int,

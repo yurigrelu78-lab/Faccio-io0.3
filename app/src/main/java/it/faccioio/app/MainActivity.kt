@@ -4138,12 +4138,11 @@ fun FaccioIoApp(
                                 }
 
                                 val saveEditedTask: () -> Unit = save@ {
-                                    val mustReschedule =
-                                        newReminderTime != null &&
-                                            newReminderTime > now &&
-                                            (reminderChanged || titleChanged)
                                     if (
-                                        mustReschedule &&
+                                        shouldScheduleReminderOnSave(
+                                            newReminderTime,
+                                            now
+                                        ) &&
                                         !scheduleReminder(
                                             context,
                                             newTitle,
@@ -5615,6 +5614,11 @@ internal fun cancelDepartureReminder(context: Context, task: TaskItem) {
 
 internal fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
     (reminderTime xor taskTitle.hashCode().toLong()).hashCode()
+
+internal fun shouldScheduleReminderOnSave(
+    reminderTime: Long?,
+    now: Long
+): Boolean = reminderTime != null && reminderTime > now
 
 internal fun isReminderPending(
     context: Context,
