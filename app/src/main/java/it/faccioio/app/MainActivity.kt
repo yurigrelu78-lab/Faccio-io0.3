@@ -350,6 +350,8 @@ fun FaccioIoApp(
     var newShoppingItem by rememberSaveable { mutableStateOf("") }
     val shoppingDraft = remember { mutableStateListOf<ShoppingItem>() }
     var showHelpGuide by rememberSaveable { mutableStateOf(false) }
+    var showAlarmDiagnostics by rememberSaveable { mutableStateOf(false) }
+    var alarmDiagnosticText by remember { mutableStateOf("") }
     var homePlace by remember { mutableStateOf(loadPersonalPlace(context, "home")) }
     var workPlace by remember { mutableStateOf(loadPersonalPlace(context, "work")) }
     var showPersonalPlaces by rememberSaveable { mutableStateOf(false) }
@@ -1362,6 +1364,20 @@ fun FaccioIoApp(
                                 shape = RoundedCornerShape(12.dp),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp)
                             ) { Text("Controlla impostazioni") }
+                            OutlinedButton(
+                                onClick = {
+                                    alarmDiagnosticText = alarmDiagnosticReport(context, tasks)
+                                    showAlarmDiagnostics = true
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = FaccioNavy
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(
+                                    horizontal = 14.dp,
+                                    vertical = 7.dp
+                                )
+                            ) { Text("Diagnostica sveglie") }
                         }
                     }
                 }
@@ -1532,6 +1548,36 @@ fun FaccioIoApp(
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 7.dp)
                 ) { Text("Ho capito") }
+            }
+        )
+    }
+
+    if (showAlarmDiagnostics) {
+        AlertDialog(
+            onDismissRequest = { showAlarmDiagnostics = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Diagnostica sveglie", color = FaccioNavy) },
+            text = {
+                Text(
+                    text = alarmDiagnosticText,
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FaccioMutedText
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        alarmDiagnosticText = alarmDiagnosticReport(context, tasks)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = FaccioNavy)
+                ) { Text("Aggiorna") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlarmDiagnostics = false }) {
+                    Text("Chiudi")
+                }
             }
         )
     }

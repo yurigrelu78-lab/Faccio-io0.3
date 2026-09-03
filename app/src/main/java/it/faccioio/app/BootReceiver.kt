@@ -28,7 +28,9 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
-        futureAutomationAlarms(loadTasksForBoot(context)).forEach { alarm ->
+        val alarms = futureAutomationAlarms(loadTasksForBoot(context))
+        markAlarmRestoreStarted(context, alarms.size)
+        alarms.forEach { alarm ->
             if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
                 return
             }
