@@ -6,8 +6,47 @@ import java.util.Locale
 data class ParsedAppointment(
     val title: String,
     val time: Long?,
-    val location: String?
+    val location: String?,
+    val dateOnly: Boolean = false,
+    val timeInPast: Boolean = false
 )
+
+data class PersonalArrivalCommand(
+    val placeKey: String,
+    val title: String
+)
+
+fun parsePersonalArrivalCommand(input: String): PersonalArrivalCommand? {
+    val normalized = input.trim().replace(Regex("\\s+"), " ")
+    val leadingMatch = Regex(
+        """^\s*quando\s+(?:arrivo|torno)\s+(?:a|al|alla|in)\s+(casa|lavoro|ufficio)\b\s*[,;:.!-]*\s*(.*)$""",
+        RegexOption.IGNORE_CASE
+    ).find(normalized)
+    val trailingMatch = Regex(
+        """^(.*?)\s*[,;:.!-]*\s*\bquando\s+(?:arrivo|torno)\s+(?:a|al|alla|in)\s+(casa|lavoro|ufficio)\b\s*[,;:.!-]*$""",
+        RegexOption.IGNORE_CASE
+    ).find(normalized)
+    val placeText = leadingMatch?.groupValues?.get(1)
+        ?: trailingMatch?.groupValues?.get(2)
+        ?: return null
+    val titleText = leadingMatch?.groupValues?.get(2)
+        ?: trailingMatch!!.groupValues[1]
+    val placeKey = when (placeText.lowercase(Locale.ITALIAN)) {
+        "casa" -> "home"
+        else -> "work"
+    }
+    val title = titleText
+        .replace(
+            Regex("^(?:ricordami|ricordare|ricordarsi|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
+            ""
+        )
+        .trim(' ', ',', '.', '-', ':', ';')
+        .replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase(Locale.ITALIAN) else it.toString()
+        }
+    if (title.isBlank()) return null
+    return PersonalArrivalCommand(placeKey, title)
+}
 
 fun parseAppointment(
     input: String,
@@ -42,6 +81,8 @@ fun parseAppointment(
         "\\b(?:il\\s+)?(\\d{1,2})\\s+(${monthNames.joinToString("|")})(?:\\s+(\\d{4}))?\\b",
         RegexOption.IGNORE_CASE
     ).find(lower)
+    val hasRelativeDate = listOf("oggi", "domani", "dopodomani").any { it in lower }
+    val hasRecognizedDate = dateMatch != null || textDateMatch != null || hasRelativeDate
     var absoluteDateWithoutYear = false
     when {
         dateMatch != null -> {
@@ -90,7 +131,6 @@ fun parseAppointment(
         if (absoluteDateWithoutYear && result.timeInMillis <= now.timeInMillis) {
             result.add(Calendar.YEAR, 1)
         }
-        if (result.timeInMillis <= now.timeInMillis && "oggi" in lower) return null
     }
 
     val locationMatch = Regex(
@@ -111,10 +151,26 @@ fun parseAppointment(
     title = title
         .replace(Regex("\\b(?:alle|ore)\\b", RegexOption.IGNORE_CASE), "")
         .trim(' ', ',', '.', '-')
+        .replace(
+            Regex("^(?:ricordami|ricordare|ricordarsi|promemoria)(?:\\s+di)?\\s*", RegexOption.IGNORE_CASE),
+            ""
+        )
+        .trim(' ', ',', '.', '-')
         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ITALIAN) else it.toString() }
 
-    if (title.isBlank() || (timeMatch == null && location.isNullOrBlank())) return null
-    return ParsedAppointment(title, timeMatch?.let { result.timeInMillis }, location)
+    if (
+        title.isBlank() ||
+        (timeMatch == null && location.isNullOrBlank() && !hasRecognizedDate)
+    ) return null
+    return ParsedAppointment(
+        title = title,
+        time = if (timeMatch != null || hasRecognizedDate) result.timeInMillis else null,
+        location = location,
+        dateOnly = hasRecognizedDate && timeMatch == null,
+        timeInPast = timeMatch != null &&
+            result.timeInMillis <= now.timeInMillis &&
+            "oggi" in lower
+    )
 }
 
 private fun normalizeSpokenTime(text: String): String {

@@ -12,8 +12,8 @@ android {
         applicationId = "it.faccioio.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.3.2"
+        versionCode = 28
+        versionName = "0.3.24"
     }
 
     signingConfigs {
@@ -62,4 +62,5 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }

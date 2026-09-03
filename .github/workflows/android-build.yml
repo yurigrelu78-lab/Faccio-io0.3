@@ -28,6 +28,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Run unit tests
+        run: gradle testDebugUnitTest
+
       - name: Prepare stable signing key
         env:
           FACCIO_IO_KEYSTORE_BASE64: ${{ secrets.FACCIO_IO_KEYSTORE_BASE64 }}
