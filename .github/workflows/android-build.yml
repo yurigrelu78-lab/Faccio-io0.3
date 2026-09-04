@@ -6,6 +6,7 @@ on:
       - main
       - feature/sveglia-attivita
       - codex/luogo-arrivo-sveglia
+      - codex/log-diagnostica-sveglie
   pull_request:
     branches:
       - main
