@@ -13,6 +13,13 @@ class ReminderReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra("task_title") ?: "Promemoria"
         val reminderTime = intent.getLongExtra("reminder_time", 0L)
         val isAlarm = intent.getBooleanExtra("is_alarm", false)
+        recordSystemDiagnosticEvent(
+            context,
+            "REMINDER RECEIVER ATTIVATO",
+            "titolo=$title; previsto=$reminderTime; tipo=${if (isAlarm) "sveglia" else "avviso"}"
+        )
+        markReminderDelivered(context, title, reminderTime, isAlarm)
+        scheduleNextRecurringAlarmAfterDelivery(context, title, reminderTime)
         val notificationId = (title.hashCode() xor reminderTime.hashCode())
 
         fun snoozeAction(action: String, label: String): NotificationCompat.Action {
@@ -78,6 +85,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setAutoCancel(false)
                 .build()
             NotificationManagerCompat.from(context).notify(notificationId, notification)
+            recordAlarmFailure(
+                context, "NOTIFICA SVEGLIA PUBBLICATA", title, reminderTime, true,
+                "notificationId=$notificationId; fullScreenIntent=creato"
+            )
             return
         }
 
@@ -105,6 +116,10 @@ class ReminderReceiver : BroadcastReceiver() {
         NotificationManagerCompat.from(context).notify(
             notificationId,
             notification
+        )
+        recordAlarmFailure(
+            context, "NOTIFICA PROMEMORIA PUBBLICATA", title, reminderTime, false,
+            "notificationId=$notificationId"
         )
     }
 }

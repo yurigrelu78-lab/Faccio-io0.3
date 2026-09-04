@@ -81,20 +81,72 @@ internal fun applyCompleteBackup(context: Context, payload: BackupPayload): Bool
     false
 }
 
+internal data class AutomationAlarm(
+    val title: String,
+    val time: Long,
+    val isAlarm: Boolean
+)
+
+internal fun futureAutomationAlarms(
+    tasks: List<TaskItem>,
+    now: Long = System.currentTimeMillis()
+): List<AutomationAlarm> = tasks
+    .filter { !it.completed }
+    .flatMap { task ->
+        val futureTask = if (
+            task.recurrence != "Mai" &&
+            (task.reminderTime ?: task.appointmentTime ?: task.scheduledDate)
+                ?.let { it <= now } == true
+        ) {
+            nextRecurringOccurrence(task, now)
+        } else {
+            task
+        }
+        buildList {
+            futureTask.reminderTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm(futureTask.title, it, futureTask.alarmEnabled))
+            }
+            futureTask.departureTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm("È ora di partire: ${futureTask.title}", it, false))
+            }
+        }
+    }
+
+internal fun scheduleNextRecurringAlarmAfterDelivery(
+    context: Context,
+    title: String,
+    deliveredTime: Long,
+    now: Long = System.currentTimeMillis()
+): Boolean {
+    val deliveredTask = loadTasksForBoot(context).firstOrNull { task ->
+        !task.completed &&
+            task.recurrence != "Mai" &&
+            task.title == title &&
+            task.reminderTime == deliveredTime
+    } ?: return true
+
+    val next = nextRecurringOccurrence(deliveredTask, now.coerceAtLeast(deliveredTime))
+    val nextReminderTime = next.reminderTime ?: return true
+    return scheduleReminder(
+        context = context,
+        taskTitle = next.title,
+        reminderTime = nextReminderTime,
+        isAlarm = next.alarmEnabled
+    )
+}
+
 internal fun restoreAllFutureAutomations(
     context: Context,
     tasks: List<TaskItem> = loadTasks(context)
-) {
-    val now = System.currentTimeMillis()
-    tasks.filter { !it.completed }.forEach { task ->
-        task.reminderTime?.takeIf { it > now }?.let {
-            scheduleReminder(context, task.title, it)
-        }
-        task.departureTime?.takeIf { it > now }?.let {
-            scheduleReminder(context, "È ora di partire: ${task.title}", it)
+): Boolean {
+    var allScheduled = true
+    futureAutomationAlarms(tasks).forEach { alarm ->
+        if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
+            allScheduled = false
         }
     }
     restoreArrivalGeofencesIfAllowed(context, tasks)
+    return allScheduled
 }
 
 private fun restoreArrivalGeofencesIfAllowed(context: Context, tasks: List<TaskItem>) {

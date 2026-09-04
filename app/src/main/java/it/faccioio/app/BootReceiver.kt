@@ -1,7 +1,6 @@
 package it.faccioio.app
 
 import android.app.AlarmManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -29,45 +28,16 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
 
-        val now = System.currentTimeMillis()
-        loadTasksForBoot(context)
-            .filter { !it.completed }
-            .flatMap { task ->
-                buildList {
-                    task.reminderTime?.takeIf { it > now }?.let {
-                        add(AlarmToRestore(task.title, it, task.alarmEnabled))
-                    }
-                    task.departureTime?.takeIf { it > now }?.let {
-                        add(AlarmToRestore("È ora di partire: ${task.title}", it, false))
-                    }
-                }
+        val alarms = futureAutomationAlarms(loadTasksForBoot(context))
+        markAlarmRestoreStarted(context, alarms.size, "Broadcast: ${intent.action}")
+        alarms.forEach { alarm ->
+            if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
+                return
             }
-            .forEach { alarm ->
-                val reminderIntent =
-                    Intent(context, ReminderReceiver::class.java).apply {
-                        putExtra("task_title", alarm.title)
-                        putExtra("reminder_time", alarm.time)
-                        putExtra("is_alarm", alarm.isAlarm)
-                    }
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    reminderRequestCode(alarm.title, alarm.time),
-                    reminderIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or
-                        PendingIntent.FLAG_IMMUTABLE
-                )
-
-                try {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        alarm.time,
-                        pendingIntent
-                    )
-                } catch (_: SecurityException) {
-                    return
-                }
-            }
+        }
+        if (intent.action != Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+            startAlarmDiagnosticMonitoring(context)
+        }
+        captureAlarmDiagnosticSnapshot(context, "dopo ripristino ${intent.action}")
     }
 }
-
-private data class AlarmToRestore(val title: String, val time: Long, val isAlarm: Boolean)
