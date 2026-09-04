@@ -43,6 +43,11 @@ class AlarmActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recordSystemDiagnosticEvent(
+            this,
+            "SCHERMATA SVEGLIA APERTA",
+            "titolo=${intent.getStringExtra("task_title")}; previsto=${intent.getLongExtra("reminder_time", 0L)}"
+        )
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         window.addFlags(

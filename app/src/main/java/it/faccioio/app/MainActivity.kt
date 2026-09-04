@@ -9,6 +9,8 @@ import android.app.PendingIntent
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
@@ -91,6 +93,8 @@ class MainActivity : ComponentActivity() {
             widgetVoiceRequest++
         }
         createReminderChannel()
+        startAlarmDiagnosticMonitoring(this)
+        captureAlarmDiagnosticSnapshot(this, "apertura applicazione")
 
         setContent {
             var themeMode by remember { mutableStateOf(loadThemeMode(this@MainActivity)) }
@@ -135,6 +139,11 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_START_WIDGET_VOICE, false)) {
             widgetVoiceRequest++
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        captureAlarmDiagnosticSnapshot(this, "app tornata in primo piano")
     }
 
     private fun createReminderChannel() {
@@ -1575,8 +1584,17 @@ fun FaccioIoApp(
                 ) { Text("Aggiorna") }
             },
             dismissButton = {
-                TextButton(onClick = { showAlarmDiagnostics = false }) {
-                    Text("Chiudi")
+                Row {
+                    TextButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Diagnostica sveglie Faccio io", alarmDiagnosticText))
+                            Toast.makeText(context, "Registro diagnostico copiato", Toast.LENGTH_SHORT).show()
+                        }
+                    ) { Text("Copia log") }
+                    TextButton(onClick = { showAlarmDiagnostics = false }) {
+                        Text("Chiudi")
+                    }
                 }
             }
         )
@@ -5532,6 +5550,10 @@ internal fun scheduleReminder(
                 Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
+        recordAlarmFailure(
+            context, "PROGRAMMAZIONE RIFIUTATA", taskTitle, reminderTime, isAlarm,
+            "permesso sveglie esatte assente; origine=${diagnosticCaller()}"
+        )
         return false
     }
 
@@ -5571,7 +5593,11 @@ internal fun scheduleReminder(
         }
         markReminderScheduled(context, taskTitle, reminderTime, isAlarm)
         true
-    } catch (_: SecurityException) {
+    } catch (error: SecurityException) {
+        recordAlarmFailure(
+            context, "ERRORE PROGRAMMAZIONE", taskTitle, reminderTime, isAlarm,
+            "${error.javaClass.simpleName}: ${error.message}; origine=${diagnosticCaller()}"
+        )
         Toast.makeText(
             context,
             "Autorizza sveglie e promemoria nelle impostazioni",
@@ -5589,13 +5615,24 @@ internal fun cancelReminder(context: Context, task: TaskItem) {
         reminderRequestCode(task.title, reminderTime),
         reminderIntent,
         PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-    ) ?: return
+    )
+
+    if (pendingIntent == null) {
+        clearScheduledReminder(
+            context, task.title, reminderTime, task.alarmEnabled,
+            source = diagnosticCaller(), pendingWasPresent = false
+        )
+        return
+    }
 
     val alarmManager =
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     alarmManager.cancel(pendingIntent)
     pendingIntent.cancel()
-    clearScheduledReminder(context, task.title, reminderTime)
+    clearScheduledReminder(
+        context, task.title, reminderTime, task.alarmEnabled,
+        source = diagnosticCaller(), pendingWasPresent = true
+    )
 }
 
 internal fun cancelDepartureReminder(context: Context, task: TaskItem) {
@@ -5606,10 +5643,21 @@ internal fun cancelDepartureReminder(context: Context, task: TaskItem) {
         reminderRequestCode(alarmTitle, departureTime),
         Intent(context, ReminderReceiver::class.java),
         PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-    ) ?: return
+    )
+    if (pendingIntent == null) {
+        clearScheduledReminder(
+            context, alarmTitle, departureTime, false,
+            source = diagnosticCaller(), pendingWasPresent = false
+        )
+        return
+    }
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     alarmManager.cancel(pendingIntent)
     pendingIntent.cancel()
+    clearScheduledReminder(
+        context, alarmTitle, departureTime, false,
+        source = diagnosticCaller(), pendingWasPresent = true
+    )
 }
 
 internal fun reminderRequestCode(taskTitle: String, reminderTime: Long): Int =
@@ -5886,6 +5934,10 @@ internal fun parseTasks(
 }
 
 internal fun saveTasks(context: Context, tasks: List<TaskItem>) {
+    val previousJson = context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
+        .getString(TASKS_KEY, null)
+    val previousTasks = previousJson?.let { parseTasks(it, emptyList()) }.orEmpty()
+    recordTasksSavedDiagnostic(context, previousTasks, tasks, diagnosticCaller())
     val savedJson = serializeTasks(tasks)
 
     context.getSharedPreferences(TASK_PREFS, Context.MODE_PRIVATE)
