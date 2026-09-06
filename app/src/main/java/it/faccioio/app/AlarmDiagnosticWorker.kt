@@ -13,7 +13,10 @@ private const val ALARM_DIAGNOSTIC_WORK = "faccio_io_alarm_diagnostic"
 class AlarmDiagnosticWorker(appContext: Context, params: WorkerParameters) :
     CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        captureAlarmDiagnosticSnapshot(applicationContext, "controllo periodico WorkManager")
+        val reason = "controllo periodico WorkManager"
+        val tasks = loadTasksForBoot(applicationContext)
+        captureAlarmDiagnosticSnapshot(applicationContext, reason, tasks)
+        repairFutureAutomationsIfNeeded(applicationContext, tasks, reason)
         return Result.success()
     }
 }

@@ -148,6 +148,58 @@ internal fun diagnosticAlarmState(hadPending: Boolean, pending: Boolean): String
     else -> "CONTROLLO ASSENTE"
 }
 
+internal fun shouldRepairFutureAutomations(
+    hasMissingPendingIntent: Boolean,
+    earliestExpectedAlarm: Long?,
+    nextAndroidAlarm: Long?
+): Boolean = hasMissingPendingIntent || when {
+    earliestExpectedAlarm == null -> false
+    nextAndroidAlarm == null -> true
+    else -> nextAndroidAlarm > earliestExpectedAlarm
+}
+
+internal fun repairFutureAutomationsIfNeeded(
+    context: Context,
+    tasks: List<TaskItem> = loadTasksForBoot(context),
+    reason: String,
+    now: Long = System.currentTimeMillis()
+): Boolean {
+    val alarms = futureAutomationAlarms(tasks, now)
+    if (alarms.isEmpty()) return false
+
+    val missing = alarms.filterNot { isReminderPending(context, it.title, it.time) }
+    val earliestExpectedAlarm = alarms.filter { it.isAlarm }.minOfOrNull { it.time }
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val nextAndroidAlarm = alarmManager.nextAlarmClock?.triggerTime
+    if (!shouldRepairFutureAutomations(missing.isNotEmpty(), earliestExpectedAlarm, nextAndroidAlarm)) {
+        return false
+    }
+
+    val cause = buildList {
+        if (missing.isNotEmpty()) add("collegamenti mancanti=${missing.size}")
+        if (earliestExpectedAlarm != null &&
+            (nextAndroidAlarm == null || nextAndroidAlarm > earliestExpectedAlarm)
+        ) {
+            add("prossimaAttesa=$earliestExpectedAlarm; nextAlarm=${nextAndroidAlarm ?: -1L}")
+        }
+    }.joinToString("; ")
+    recordSystemDiagnosticEvent(context, "AUTORIPRISTINO AVVIATO", "motivo=$reason; $cause")
+
+    var restored = true
+    alarms.forEach { alarm ->
+        if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) restored = false
+    }
+
+    val remaining = alarms.count { !isReminderPending(context, it.title, it.time) }
+    val success = restored && remaining == 0
+    recordSystemDiagnosticEvent(
+        context,
+        if (success) "AUTORIPRISTINO RIUSCITO" else "AUTORIPRISTINO INCOMPLETO",
+        "motivo=$reason; automazioni=${alarms.size}; collegamentiAncoraMancanti=$remaining"
+    )
+    return success
+}
+
 private fun sanitize(value: String): String = value.replace(FIELD_SEPARATOR, " ").replace('\n', ' ')
 
 private fun recordAlarmEvent(
