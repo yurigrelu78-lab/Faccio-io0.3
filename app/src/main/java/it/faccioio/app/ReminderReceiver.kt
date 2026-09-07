@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -39,55 +40,15 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         if (isAlarm) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val soundUri = android.media.RingtoneManager.getDefaultUri(
-                    android.media.RingtoneManager.TYPE_ALARM
-                )
-                val attributes = android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                    .build()
-                val channel = android.app.NotificationChannel(
-                    AlarmActivity.ALARM_CHANNEL_ID,
-                    "Sveglie Faccio io",
-                    android.app.NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Sveglie insistenti associate alle attività"
-                    enableVibration(true)
-                    vibrationPattern = longArrayOf(0, 800, 400, 800)
-                    setSound(soundUri, attributes)
-                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-                }
-                context.getSystemService(android.app.NotificationManager::class.java)
-                    .createNotificationChannel(channel)
+            val playbackIntent = Intent(context, AlarmPlaybackService::class.java).apply {
+                putExtra(AlarmPlaybackService.EXTRA_TITLE, title)
+                putExtra(AlarmPlaybackService.EXTRA_REMINDER_TIME, reminderTime)
+                putExtra(AlarmPlaybackService.EXTRA_NOTIFICATION_ID, notificationId)
             }
-            val alarmIntent = Intent(context, AlarmActivity::class.java).apply {
-                putExtra("task_title", title)
-                putExtra("reminder_time", reminderTime)
-                putExtra("notification_id", notificationId)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            }
-            val fullScreenIntent = PendingIntent.getActivity(
-                context,
-                notificationId,
-                alarmIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val notification = NotificationCompat.Builder(context, AlarmActivity.ALARM_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("Sveglia Faccio io")
-                .setContentText(title)
-                .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setFullScreenIntent(fullScreenIntent, true)
-                .setContentIntent(fullScreenIntent)
-                .setOngoing(true)
-                .setAutoCancel(false)
-                .build()
-            NotificationManagerCompat.from(context).notify(notificationId, notification)
+            ContextCompat.startForegroundService(context, playbackIntent)
             recordAlarmFailure(
-                context, "NOTIFICA SVEGLIA PUBBLICATA", title, reminderTime, true,
-                "notificationId=$notificationId; fullScreenIntent=creato"
+                context, "SERVIZIO SVEGLIA AVVIATO", title, reminderTime, true,
+                "notificationId=$notificationId; foregroundService=richiesto"
             )
             return
         }
