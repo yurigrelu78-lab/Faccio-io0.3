@@ -101,6 +101,48 @@ class RecurringAlarmTest {
     }
 
     @Test
+    fun projectedRecurringAlarmSchedulesFollowingOccurrenceAtDelivery() {
+        val zone = TimeZone.getTimeZone("Europe/Rome")
+        val sunday = time(zone, 2026, Calendar.SEPTEMBER, 6, 21, 50)
+        val tuesday = time(zone, 2026, Calendar.SEPTEMBER, 8, 21, 50)
+        val wednesday = time(zone, 2026, Calendar.SEPTEMBER, 9, 21, 50)
+        val task = TaskItem(
+            title = "Routine della sera",
+            reminderTime = sunday,
+            appointmentTime = sunday,
+            alarmEnabled = true,
+            recurrence = "Personalizzata",
+            recurrenceWeekdays = listOf(Calendar.TUESDAY, Calendar.WEDNESDAY)
+        )
+
+        val next = nextRecurringAlarmAfterDelivery(listOf(task), task.title, tuesday)
+
+        assertEquals(wednesday, next?.time)
+        assertTrue(next?.isAlarm == true)
+    }
+
+    @Test
+    fun recurringRoutineIsProjectedIntoTodaysAgenda() {
+        val zone = TimeZone.getTimeZone("Europe/Rome")
+        val sunday = time(zone, 2026, Calendar.SEPTEMBER, 6, 21, 50)
+        val tuesdayMorning = time(zone, 2026, Calendar.SEPTEMBER, 8, 7, 49)
+        val tuesdayEvening = time(zone, 2026, Calendar.SEPTEMBER, 8, 21, 50)
+        val task = TaskItem(
+            title = "Routine della sera",
+            reminderTime = sunday,
+            appointmentTime = sunday,
+            alarmEnabled = true,
+            recurrence = "Personalizzata",
+            recurrenceWeekdays = listOf(Calendar.TUESDAY)
+        )
+
+        val occurrence = recurringOccurrenceOnDay(task, tuesdayMorning)
+
+        assertEquals(tuesdayEvening, occurrence?.appointmentTime)
+        assertEquals(tuesdayEvening, occurrence?.reminderTime)
+    }
+
+    @Test
     fun expiredSingleAlarmIsNeverRepeated() {
         val zone = TimeZone.getTimeZone("Europe/Rome")
         val alarmTime = time(zone, 2026, Calendar.AUGUST, 30, 21, 50)

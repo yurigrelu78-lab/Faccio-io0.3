@@ -255,7 +255,15 @@ internal fun alarmDiagnosticReport(
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.ITALIAN)
     fun formatted(time: Long?): String = time?.takeIf { it >= 0L }?.let { formatter.format(Date(it)) } ?: "nessuna"
-    val alarmTasks = tasks.filter { it.alarmEnabled && it.reminderTime != null }.sortedBy { it.reminderTime }
+    val alarmTasks = tasks.filter { it.alarmEnabled && it.reminderTime != null }
+        .map { task ->
+            if (task.recurrence != "Mai" && task.reminderTime!! <= now) {
+                nextRecurringOccurrence(task, now)
+            } else {
+                task
+            }
+        }
+        .sortedBy { it.reminderTime }
 
     return buildString {
         appendLine("Ora: ${formatted(now)}")

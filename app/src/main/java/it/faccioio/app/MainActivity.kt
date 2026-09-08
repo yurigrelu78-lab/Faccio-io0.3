@@ -4468,10 +4468,11 @@ private fun TodayAgenda(
     val now = System.currentTimeMillis()
     val todayCalendar = Calendar.getInstance()
     val scheduled = tasks.mapIndexedNotNull { index, task ->
-        val time = task.appointmentTime ?: task.reminderTime
-        if (time != null && isSameDay(time, todayCalendar.timeInMillis)) {
-            AgendaEntry(index, task, time)
-        } else null
+        val occurrence = recurringOccurrenceOnDay(task, todayCalendar.timeInMillis)
+            ?: return@mapIndexedNotNull null
+        val time = occurrence.appointmentTime ?: occurrence.reminderTime
+            ?: return@mapIndexedNotNull null
+        AgendaEntry(index, occurrence, time)
     }.sortedBy { it.time }
     val visibleScheduled = scheduled.filterNot { it.task.completed }
     val unscheduled = tasks.mapIndexedNotNull { index, task ->
@@ -5086,17 +5087,17 @@ private fun isLastPendingScheduledTaskForToday(
     now: Long = System.currentTimeMillis()
 ): Boolean {
     val completingTask = tasks.getOrNull(completingIndex) ?: return false
-    val completingTime = completingTask.appointmentTime ?: completingTask.reminderTime
-        ?: completingTask.scheduledDate
-        ?: return false
-    if (!isSameDay(completingTime, now)) return false
+    val completingOccurrence = recurringOccurrenceOnDay(completingTask, now) ?: return false
+    if (completingOccurrence.appointmentTime == null &&
+        completingOccurrence.reminderTime == null &&
+        completingOccurrence.scheduledDate == null
+    ) return false
 
     return tasks.withIndex().none { (index, task) ->
         if (index == completingIndex || task.completed) {
             false
         } else {
-            val time = task.appointmentTime ?: task.reminderTime ?: task.scheduledDate
-            time != null && isSameDay(time, now)
+            recurringOccurrenceOnDay(task, now) != null
         }
     }
 }
