@@ -112,26 +112,89 @@ internal fun futureAutomationAlarms(
         }
     }
 
+internal fun recurringOccurrenceOnDay(task: TaskItem, day: Long): TaskItem? {
+    val startOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = day
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val endOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = startOfDay
+        add(java.util.Calendar.DAY_OF_YEAR, 1)
+    }.timeInMillis
+    val latestStoredTime = listOfNotNull(
+        task.appointmentTime,
+        task.reminderTime,
+        task.scheduledDate
+    ).maxOrNull()
+    val occurrence = if (
+        task.recurrence == "Mai" ||
+        latestStoredTime == null ||
+        latestStoredTime >= startOfDay
+    ) {
+        task
+    } else {
+        nextRecurringOccurrence(task, startOfDay - 1L)
+    }
+    val occursToday = listOfNotNull(
+        occurrence.appointmentTime,
+        occurrence.reminderTime,
+        occurrence.scheduledDate
+    ).any { it in startOfDay until endOfDay }
+    return occurrence.takeIf { occursToday }
+}
+
+internal fun occurrenceDisplayTimeOnDay(task: TaskItem, day: Long): Long? {
+    val startOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = day
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val endOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = startOfDay
+        add(java.util.Calendar.DAY_OF_YEAR, 1)
+    }.timeInMillis
+    return listOfNotNull(task.appointmentTime, task.reminderTime, task.scheduledDate)
+        .firstOrNull { it in startOfDay until endOfDay }
+}
+
+internal fun nextRecurringAlarmAfterDelivery(
+    tasks: List<TaskItem>,
+    title: String,
+    deliveredTime: Long
+): AutomationAlarm? {
+    val deliveredOccurrence = tasks.asSequence()
+        .filter { !it.completed && it.recurrence != "Mai" && it.title == title }
+        .map { task -> nextRecurringOccurrence(task, deliveredTime - 1L) }
+        .firstOrNull { it.reminderTime == deliveredTime }
+        ?: return null
+    val occurrenceEnd = deliveredOccurrence.appointmentTime
+        ?: deliveredOccurrence.reminderTime
+        ?: deliveredTime
+    val next = nextRecurringOccurrence(deliveredOccurrence, occurrenceEnd)
+    val nextReminderTime = next.reminderTime ?: return null
+    return AutomationAlarm(next.title, nextReminderTime, next.alarmEnabled)
+}
+
 internal fun scheduleNextRecurringAlarmAfterDelivery(
     context: Context,
     title: String,
-    deliveredTime: Long,
-    now: Long = System.currentTimeMillis()
+    deliveredTime: Long
 ): Boolean {
-    val deliveredTask = loadTasksForBoot(context).firstOrNull { task ->
-        !task.completed &&
-            task.recurrence != "Mai" &&
-            task.title == title &&
-            task.reminderTime == deliveredTime
-    } ?: return true
-
-    val next = nextRecurringOccurrence(deliveredTask, now.coerceAtLeast(deliveredTime))
-    val nextReminderTime = next.reminderTime ?: return true
+    val next = nextRecurringAlarmAfterDelivery(
+        loadTasksForBoot(context),
+        title,
+        deliveredTime
+    ) ?: return true
     return scheduleReminder(
         context = context,
         taskTitle = next.title,
-        reminderTime = nextReminderTime,
-        isAlarm = next.alarmEnabled
+        reminderTime = next.time,
+        isAlarm = next.isAlarm
     )
 }
 

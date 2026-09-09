@@ -29,11 +29,15 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         val alarms = futureAutomationAlarms(loadTasksForBoot(context))
-        markAlarmRestoreStarted(context, alarms.size)
+        markAlarmRestoreStarted(context, alarms.size, "Broadcast: ${intent.action}")
         alarms.forEach { alarm ->
             if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
                 return
             }
         }
+        if (intent.action != Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+            startAlarmDiagnosticMonitoring(context)
+        }
+        captureAlarmDiagnosticSnapshot(context, "dopo ripristino ${intent.action}")
     }
 }
