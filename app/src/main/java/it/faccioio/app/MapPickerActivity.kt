@@ -8,6 +8,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -16,6 +17,9 @@ import android.widget.TextView
 
 internal const val EXTRA_MAP_LATITUDE = "map_latitude"
 internal const val EXTRA_MAP_LONGITUDE = "map_longitude"
+internal const val MAP_USER_AGENT =
+    "FaccioIo/0.3.31 (+https://github.com/yurigrelu78-lab/Faccio-io0.3)"
+internal const val OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 
 class MapPickerActivity : Activity() {
     private var selectedLatitude = Double.NaN
@@ -51,6 +55,8 @@ class MapPickerActivity : Activity() {
             )
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.cacheMode = WebSettings.LOAD_DEFAULT
+            settings.userAgentString = MAP_USER_AGENT
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
             addJavascriptInterface(MapBridge(), "AndroidMap")
@@ -134,7 +140,7 @@ private fun mapHtml(latitude: Double, longitude: Double): String = """
       <script>
         const initial = [$latitude, $longitude];
         const map = L.map('map').setView(initial, 17);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('$OSM_TILE_URL', {
           maxZoom: 19,
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
@@ -149,4 +155,3 @@ private fun mapHtml(latitude: Double, longitude: Double): String = """
     </body>
     </html>
 """.trimIndent()
-
