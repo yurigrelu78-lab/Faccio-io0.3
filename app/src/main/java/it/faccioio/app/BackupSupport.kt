@@ -129,11 +129,28 @@ internal fun recurringOccurrenceOnDay(task: TaskItem, day: Long): TaskItem? {
     } else {
         nextRecurringOccurrence(task, startOfDay - 1L)
     }
-    val occurrenceTime = occurrence.appointmentTime
-        ?: occurrence.reminderTime
-        ?: occurrence.scheduledDate
-        ?: return null
-    return occurrence.takeIf { occurrenceTime in startOfDay until endOfDay }
+    val occursToday = listOfNotNull(
+        occurrence.appointmentTime,
+        occurrence.reminderTime,
+        occurrence.scheduledDate
+    ).any { it in startOfDay until endOfDay }
+    return occurrence.takeIf { occursToday }
+}
+
+internal fun occurrenceDisplayTimeOnDay(task: TaskItem, day: Long): Long? {
+    val startOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = day
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val endOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = startOfDay
+        add(java.util.Calendar.DAY_OF_YEAR, 1)
+    }.timeInMillis
+    return listOfNotNull(task.appointmentTime, task.reminderTime, task.scheduledDate)
+        .firstOrNull { it in startOfDay until endOfDay }
 }
 
 internal fun nextRecurringAlarmAfterDelivery(

@@ -4470,7 +4470,7 @@ private fun TodayAgenda(
     val scheduled = tasks.mapIndexedNotNull { index, task ->
         val occurrence = recurringOccurrenceOnDay(task, todayCalendar.timeInMillis)
             ?: return@mapIndexedNotNull null
-        val time = occurrence.appointmentTime ?: occurrence.reminderTime
+        val time = occurrenceDisplayTimeOnDay(occurrence, todayCalendar.timeInMillis)
             ?: return@mapIndexedNotNull null
         AgendaEntry(index, occurrence, time)
     }.sortedBy { it.time }

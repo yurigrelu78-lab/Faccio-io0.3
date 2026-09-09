@@ -143,6 +143,26 @@ class RecurringAlarmTest {
     }
 
     @Test
+    fun recurringRoutineUsesTodaysReminderWhenAppointmentIsOnAnotherDay() {
+        val zone = TimeZone.getTimeZone("Europe/Rome")
+        val wednesdayReminder = time(zone, 2026, Calendar.SEPTEMBER, 9, 21, 50)
+        val thursdayAppointment = time(zone, 2026, Calendar.SEPTEMBER, 10, 21, 50)
+        val wednesdayMorning = time(zone, 2026, Calendar.SEPTEMBER, 9, 7, 0)
+        val task = TaskItem(
+            title = "Routine della sera",
+            reminderTime = wednesdayReminder,
+            appointmentTime = thursdayAppointment,
+            alarmEnabled = true,
+            recurrence = "Personalizzata",
+            recurrenceWeekdays = listOf(Calendar.WEDNESDAY, Calendar.THURSDAY)
+        )
+
+        val occurrence = recurringOccurrenceOnDay(task, wednesdayMorning)
+
+        assertEquals(wednesdayReminder, occurrenceDisplayTimeOnDay(occurrence!!, wednesdayMorning))
+    }
+
+    @Test
     fun expiredSingleAlarmIsNeverRepeated() {
         val zone = TimeZone.getTimeZone("Europe/Rome")
         val alarmTime = time(zone, 2026, Calendar.AUGUST, 30, 21, 50)
