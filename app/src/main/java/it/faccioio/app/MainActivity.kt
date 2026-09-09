@@ -3473,8 +3473,10 @@ fun FaccioIoApp(
                         ) { Text("Cerca luogo") }
                         if (taskPlaceMessage.isNotBlank()) Text(taskPlaceMessage, style = MaterialTheme.typography.bodySmall)
                         taskResolvedPlace?.let { place ->
-                            TextButton(onClick = { openPlaceOnMap(context, place.address, place.latitude, place.longitude) }) {
-                                Text("Controlla sulla mappa")
+                            MapPickerButton(place) { selected ->
+                                taskResolvedPlace = selected
+                                taskLocationQuery = selected.address
+                                taskPlaceMessage = "Punto preciso scelto sulla mappa"
                             }
                         }
                         Row(
@@ -3887,16 +3889,11 @@ fun FaccioIoApp(
                             Text(editedPlaceMessage, style = MaterialTheme.typography.bodySmall)
                         }
                         editedResolvedPlace?.let { place ->
-                            TextButton(
-                                onClick = {
-                                    openPlaceOnMap(
-                                        context,
-                                        place.address,
-                                        place.latitude,
-                                        place.longitude
-                                    )
-                                }
-                            ) { Text("Controlla sulla mappa") }
+                            MapPickerButton(place) { selected ->
+                                editedResolvedPlace = selected
+                                editedLocationQuery = selected.address
+                                editedPlaceMessage = "Punto preciso scelto sulla mappa"
+                            }
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -4560,7 +4557,14 @@ private fun TodayAgenda(
                         color = FaccioNavy,
                         maxLines = 2
                     )
-                    Text("Un passo alla volta.", style = MaterialTheme.typography.bodySmall, color = FaccioMutedText)
+                    Text(
+                        text = motivationFor(java.time.LocalDate.now()).text,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = FaccioMutedText,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                 }
                 FilledTonalButton(
                     onClick = onAddTask,
@@ -6072,6 +6076,82 @@ private fun resolvePlace(
             val addresses = try {
                 @Suppress("DEPRECATION")
                 geocoder.getFromLocationName(searchQuery, 1)
+            } catch (_: Exception) {
+                null
+            }
+            deliver(addresses)
+        }.start()
+    }
+}
+
+@Composable
+private fun MapPickerButton(
+    place: ResolvedPlace,
+    onPlaceSelected: (ResolvedPlace) -> Unit
+) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val data = result.data ?: return@rememberLauncherForActivityResult
+        val latitude = data.getDoubleExtra(EXTRA_MAP_LATITUDE, Double.NaN)
+        val longitude = data.getDoubleExtra(EXTRA_MAP_LONGITUDE, Double.NaN)
+        if (!latitude.isFinite() || !longitude.isFinite()) return@rememberLauncherForActivityResult
+        // Rende subito effettive le coordinate scelte: la ricerca dell'indirizzo
+        // non deve ritardare o impedire il salvataggio del geofence preciso.
+        onPlaceSelected(ResolvedPlace(place.address, latitude, longitude))
+        resolveCoordinates(context, latitude, longitude, place.address, onPlaceSelected)
+    }
+
+    OutlinedButton(
+        onClick = {
+            launcher.launch(
+                Intent(context, MapPickerActivity::class.java).apply {
+                    putExtra(EXTRA_MAP_LATITUDE, place.latitude)
+                    putExtra(EXTRA_MAP_LONGITUDE, place.longitude)
+                }
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(Icons.Default.LocationOn, contentDescription = null)
+        Spacer(Modifier.width(6.dp))
+        Text("Controlla sulla mappa")
+    }
+}
+
+private fun resolveCoordinates(
+    context: Context,
+    latitude: Double,
+    longitude: Double,
+    fallbackAddress: String,
+    result: (ResolvedPlace) -> Unit
+) {
+    val geocoder = Geocoder(context, Locale.ITALIAN)
+    val deliver: (List<Address>?) -> Unit = { addresses ->
+        val address = addresses?.firstOrNull()?.getAddressLine(0)
+            ?.takeIf { it.isNotBlank() }
+            ?: fallbackAddress
+        Handler(Looper.getMainLooper()).post {
+            result(ResolvedPlace(address, latitude, longitude))
+        }
+    }
+    if (Build.VERSION.SDK_INT >= 33) {
+        geocoder.getFromLocation(
+            latitude,
+            longitude,
+            1,
+            object : Geocoder.GeocodeListener {
+                override fun onGeocode(addresses: MutableList<Address>) = deliver(addresses)
+                override fun onError(errorMessage: String?) = deliver(null)
+            }
+        )
+    } else {
+        Thread {
+            val addresses = try {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(latitude, longitude, 1)
             } catch (_: Exception) {
                 null
             }

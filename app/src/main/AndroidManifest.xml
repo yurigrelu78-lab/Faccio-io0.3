@@ -79,6 +79,11 @@
             android:turnScreenOn="true" />
 
         <activity
+            android:name=".MapPickerActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             
