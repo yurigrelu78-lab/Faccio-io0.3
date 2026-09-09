@@ -124,7 +124,16 @@ internal fun recurringOccurrenceOnDay(task: TaskItem, day: Long): TaskItem? {
         timeInMillis = startOfDay
         add(java.util.Calendar.DAY_OF_YEAR, 1)
     }.timeInMillis
-    val occurrence = if (task.recurrence == "Mai") {
+    val latestStoredTime = listOfNotNull(
+        task.appointmentTime,
+        task.reminderTime,
+        task.scheduledDate
+    ).maxOrNull()
+    val occurrence = if (
+        task.recurrence == "Mai" ||
+        latestStoredTime == null ||
+        latestStoredTime >= startOfDay
+    ) {
         task
     } else {
         nextRecurringOccurrence(task, startOfDay - 1L)
