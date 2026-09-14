@@ -1,8 +1,5 @@
 name: Build Android APK
 
-permissions:
-  contents: write
-
 on:
   push:
     branches:
@@ -62,14 +59,3 @@ jobs:
           name: Faccio-io-0.3-signed
           path: app/build/outputs/apk/release/app-release.apk
 
-      - name: Publish GitHub release 0.3.32
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v0.3.32
-          name: Faccio Io 0.3.32
-          body: |
-            Corregge la gestione delle tappe nelle routine ricorrenti.
-            Il completamento generale non può più chiudere una routine con tappe incomplete.
-          files: app/build/outputs/apk/release/app-release.apk
-          fail_on_unmatched_files: true
-          make_latest: true
