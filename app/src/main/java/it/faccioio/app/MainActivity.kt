@@ -715,16 +715,21 @@ fun FaccioIoApp(
                     updateTaskCompletion(context, tasks, index, completed)
                     if (completesDay) dayCompletionSignal++
                 },
-                onStepChange = { index, stepIndex, completed ->
-                    val task = tasks.getOrNull(index)
+                onStepChange = { index, occurrence, stepIndex, completed ->
                     val completesRoutine = completed &&
-                        task != null &&
-                        task.routineSteps.mapIndexed { currentIndex, step ->
+                        occurrence.routineSteps.mapIndexed { currentIndex, step ->
                             if (currentIndex == stepIndex) true else step.completed
                         }.all { it }
                     val completesDay = completesRoutine &&
                         isLastPendingScheduledTaskForToday(tasks, index)
-                    updateRoutineStep(context, tasks, index, stepIndex, completed)
+                    updateRoutineStep(
+                        context = context,
+                        tasks = tasks,
+                        taskIndex = index,
+                        stepIndex = stepIndex,
+                        completed = completed,
+                        displayedOccurrence = occurrence
+                    )
                     if (completesDay) dayCompletionSignal++
                 },
                 onOpenMap = { task ->
@@ -920,14 +925,18 @@ fun FaccioIoApp(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.Top
                         ) {
-                            Checkbox(
-                                checked = task.completed,
-                                onCheckedChange = { checked ->
-                                    updateTaskCompletion(context, tasks, index, checked)
-                                },
-                                modifier = Modifier.size(40.dp),
-                                colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
-                            )
+                            if (task.routineSteps.isEmpty()) {
+                                Checkbox(
+                                    checked = task.completed,
+                                    onCheckedChange = { checked ->
+                                        updateTaskCompletion(context, tasks, index, checked)
+                                    },
+                                    modifier = Modifier.size(40.dp),
+                                    colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.size(40.dp))
+                            }
 
                             Icon(
                                 imageVector = selectionIcon("Categoria", task.category) ?: Icons.Default.Person,
@@ -4453,7 +4462,7 @@ private fun TodayAgenda(
     tasks: List<TaskItem>,
     completionSignal: Int,
     onCompletedChange: (Int, Boolean) -> Unit,
-    onStepChange: (Int, Int, Boolean) -> Unit,
+    onStepChange: (Int, TaskItem, Int, Boolean) -> Unit,
     onOpenMap: (TaskItem) -> Unit,
     onAddTask: () -> Unit,
     onOpenShoppingList: (Int) -> Unit,
@@ -4768,7 +4777,7 @@ private fun TodayAgenda(
                         isNext = entry == nextEntry,
                         hasConflict = entry.index in overlappingIndexes,
                         onStepChange = { stepIndex, completed ->
-                            onStepChange(entry.index, stepIndex, completed)
+                            onStepChange(entry.index, entry.task, stepIndex, completed)
                         },
                         onCompletedChange = { onCompletedChange(entry.index, it) },
                         onOpenMap = onOpenMap,
@@ -4785,7 +4794,7 @@ private fun TodayAgenda(
                     task = task,
                     leadingText = task.priority,
                     onStepChange = { stepIndex, completed ->
-                        onStepChange(index, stepIndex, completed)
+                        onStepChange(index, task, stepIndex, completed)
                     },
                     onCompletedChange = { onCompletedChange(index, it) },
                     onOpenMap = onOpenMap,
@@ -4830,12 +4839,16 @@ private fun AgendaTaskCard(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Checkbox(
-                checked = task.completed,
-                onCheckedChange = onCompletedChange,
-                modifier = Modifier.size(40.dp),
-                colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
-            )
+            if (task.routineSteps.isEmpty()) {
+                Checkbox(
+                    checked = task.completed,
+                    onCheckedChange = onCompletedChange,
+                    modifier = Modifier.size(40.dp),
+                    colors = CheckboxDefaults.colors(checkedColor = FaccioTeal)
+                )
+            } else {
+                Spacer(modifier = Modifier.size(40.dp))
+            }
             Icon(
                 imageVector = selectionIcon("Categoria", task.category) ?: Icons.Default.Person,
                 contentDescription = task.category,
@@ -5140,9 +5153,11 @@ private fun updateTaskCompletion(
     context: Context,
     tasks: MutableList<TaskItem>,
     index: Int,
-    completed: Boolean
+    completed: Boolean,
+    completedFromRoutineSteps: Boolean = false
 ) {
     val original = tasks.getOrNull(index) ?: return
+    if (completed && original.routineSteps.isNotEmpty() && !completedFromRoutineSteps) return
     val task = if (original.routineSteps.isNotEmpty()) {
         original.copy(
             completed = completed,
@@ -5285,9 +5300,14 @@ private fun updateRoutineStep(
     tasks: MutableList<TaskItem>,
     taskIndex: Int,
     stepIndex: Int,
-    completed: Boolean
+    completed: Boolean,
+    displayedOccurrence: TaskItem? = null
 ) {
-    val task = tasks.getOrNull(taskIndex) ?: return
+    val storedTask = tasks.getOrNull(taskIndex) ?: return
+    // Se "Oggi" sta mostrando un'occorrenza proiettata da una data precedente,
+    // salva prima quella stessa occorrenza: altrimenti la ricomposizione rigenera
+    // la copia e fa sembrare che la spunta non sia stata accettata.
+    val task = displayedOccurrence ?: storedTask
     if (stepIndex !in task.routineSteps.indices) return
     val updatedSteps = task.routineSteps.toMutableList().apply {
         this[stepIndex] = this[stepIndex].copy(completed = completed)
@@ -5295,7 +5315,13 @@ private fun updateRoutineStep(
     val allCompleted = updatedSteps.isNotEmpty() && updatedSteps.all { it.completed }
     tasks[taskIndex] = task.copy(routineSteps = updatedSteps)
     if (allCompleted) {
-        updateTaskCompletion(context, tasks, taskIndex, true)
+        updateTaskCompletion(
+            context,
+            tasks,
+            taskIndex,
+            true,
+            completedFromRoutineSteps = true
+        )
     } else {
         tasks[taskIndex] = tasks[taskIndex].copy(completed = false)
         saveTasks(context, tasks)
