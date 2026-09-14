@@ -63,7 +63,7 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
 
       - name: Publish GitHub release 0.3.32
-        if: github.event_name == 'push' && github.event.head_commit.message == 'Pubblica release 0.3.32'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/codex/log-diagnostica-sveglie'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.3.32
