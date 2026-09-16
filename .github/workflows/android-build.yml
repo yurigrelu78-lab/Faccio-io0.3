@@ -6,6 +6,7 @@ on:
       - main
       - feature/sveglia-attivita
       - codex/luogo-arrivo-sveglia
+      - codex/log-diagnostica-sveglie
   pull_request:
     branches:
       - main
@@ -57,3 +58,4 @@ jobs:
         with:
           name: Faccio-io-0.3-signed
           path: app/build/outputs/apk/release/app-release.apk
+
