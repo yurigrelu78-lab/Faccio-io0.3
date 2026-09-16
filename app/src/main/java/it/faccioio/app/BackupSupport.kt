@@ -81,20 +81,135 @@ internal fun applyCompleteBackup(context: Context, payload: BackupPayload): Bool
     false
 }
 
+internal data class AutomationAlarm(
+    val title: String,
+    val time: Long,
+    val isAlarm: Boolean
+)
+
+internal fun futureAutomationAlarms(
+    tasks: List<TaskItem>,
+    now: Long = System.currentTimeMillis()
+): List<AutomationAlarm> = tasks
+    .filter { !it.completed }
+    .flatMap { task ->
+        val futureTask = if (
+            task.recurrence != "Mai" &&
+            (task.reminderTime ?: task.appointmentTime ?: task.scheduledDate)
+                ?.let { it <= now } == true
+        ) {
+            nextRecurringOccurrence(task, now)
+        } else {
+            task
+        }
+        buildList {
+            futureTask.reminderTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm(futureTask.title, it, futureTask.alarmEnabled))
+            }
+            futureTask.departureTime?.takeIf { it > now }?.let {
+                add(AutomationAlarm("È ora di partire: ${futureTask.title}", it, false))
+            }
+        }
+    }
+
+internal fun recurringOccurrenceOnDay(task: TaskItem, day: Long): TaskItem? {
+    val startOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = day
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val endOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = startOfDay
+        add(java.util.Calendar.DAY_OF_YEAR, 1)
+    }.timeInMillis
+    val latestStoredTime = listOfNotNull(
+        task.appointmentTime,
+        task.reminderTime,
+        task.scheduledDate
+    ).maxOrNull()
+    val occurrence = if (
+        task.recurrence == "Mai" ||
+        latestStoredTime == null ||
+        latestStoredTime >= startOfDay
+    ) {
+        task
+    } else {
+        nextRecurringOccurrence(task, startOfDay - 1L)
+    }
+    val occursToday = listOfNotNull(
+        occurrence.appointmentTime,
+        occurrence.reminderTime,
+        occurrence.scheduledDate
+    ).any { it in startOfDay until endOfDay }
+    return occurrence.takeIf { occursToday }
+}
+
+internal fun occurrenceDisplayTimeOnDay(task: TaskItem, day: Long): Long? {
+    val startOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = day
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val endOfDay = java.util.Calendar.getInstance().apply {
+        timeInMillis = startOfDay
+        add(java.util.Calendar.DAY_OF_YEAR, 1)
+    }.timeInMillis
+    return listOfNotNull(task.appointmentTime, task.reminderTime, task.scheduledDate)
+        .firstOrNull { it in startOfDay until endOfDay }
+}
+
+internal fun nextRecurringAlarmAfterDelivery(
+    tasks: List<TaskItem>,
+    title: String,
+    deliveredTime: Long
+): AutomationAlarm? {
+    val deliveredOccurrence = tasks.asSequence()
+        .filter { !it.completed && it.recurrence != "Mai" && it.title == title }
+        .map { task -> nextRecurringOccurrence(task, deliveredTime - 1L) }
+        .firstOrNull { it.reminderTime == deliveredTime }
+        ?: return null
+    val occurrenceEnd = deliveredOccurrence.appointmentTime
+        ?: deliveredOccurrence.reminderTime
+        ?: deliveredTime
+    val next = nextRecurringOccurrence(deliveredOccurrence, occurrenceEnd)
+    val nextReminderTime = next.reminderTime ?: return null
+    return AutomationAlarm(next.title, nextReminderTime, next.alarmEnabled)
+}
+
+internal fun scheduleNextRecurringAlarmAfterDelivery(
+    context: Context,
+    title: String,
+    deliveredTime: Long
+): Boolean {
+    val next = nextRecurringAlarmAfterDelivery(
+        loadTasksForBoot(context),
+        title,
+        deliveredTime
+    ) ?: return true
+    return scheduleReminder(
+        context = context,
+        taskTitle = next.title,
+        reminderTime = next.time,
+        isAlarm = next.isAlarm
+    )
+}
+
 internal fun restoreAllFutureAutomations(
     context: Context,
     tasks: List<TaskItem> = loadTasks(context)
-) {
-    val now = System.currentTimeMillis()
-    tasks.filter { !it.completed }.forEach { task ->
-        task.reminderTime?.takeIf { it > now }?.let {
-            scheduleReminder(context, task.title, it)
-        }
-        task.departureTime?.takeIf { it > now }?.let {
-            scheduleReminder(context, "È ora di partire: ${task.title}", it)
+): Boolean {
+    var allScheduled = true
+    futureAutomationAlarms(tasks).forEach { alarm ->
+        if (!scheduleReminder(context, alarm.title, alarm.time, alarm.isAlarm)) {
+            allScheduled = false
         }
     }
     restoreArrivalGeofencesIfAllowed(context, tasks)
+    return allScheduled
 }
 
 private fun restoreArrivalGeofencesIfAllowed(context: Context, tasks: List<TaskItem>) {
