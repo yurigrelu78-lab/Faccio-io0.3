@@ -3716,8 +3716,15 @@ fun FaccioIoApp(
                         },
                         enabled = personalPlaceQuery.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Verifica sulla mappa") }
+                    ) { Text("Cerca luogo") }
                     if (personalPlaceMessage.isNotBlank()) Text(personalPlaceMessage)
+                    personalPlaceResult?.let { place ->
+                        MapPickerButton(place) { selected ->
+                            personalPlaceResult = selected
+                            personalPlaceQuery = selected.address
+                            personalPlaceMessage = "Punto preciso scelto sulla mappa"
+                        }
+                    }
                 }
             },
             confirmButton = {
