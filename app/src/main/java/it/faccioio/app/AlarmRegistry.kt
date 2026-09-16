@@ -1,18 +1,27 @@
 package it.faccioio.app
 
 import android.app.AlarmManager
+import android.app.NotificationManager
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Build
 import android.os.BatteryManager
+import android.os.SystemClock
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 private const val ALARM_REGISTRY_PREFS = "faccio_io_alarm_registry"
 private const val ALARM_EVENTS_KEY = "alarm_events_v2"
-private const val MAX_ALARM_EVENTS = 500
+private const val MAX_ALARM_EVENTS = 5000
+private const val ALARM_EVENT_RETENTION_MS = 7L * 24L * 60L * 60L * 1000L
 private const val FIELD_SEPARATOR = "\u001f"
 private val alarmLogLock = Any()
 
@@ -127,6 +136,17 @@ internal fun recordTasksSavedDiagnostic(
                 "origine=$source; prima=${old?.let(::signature)}; dopo=${new?.let(::signature)}"
             )
         }
+        if (old != null && new != null && old.routineSteps != new.routineSteps) {
+            recordAlarmEvent(
+                context,
+                "TAPPE ROUTINE MODIFICATE",
+                title,
+                new.reminderTime ?: new.appointmentTime ?: System.currentTimeMillis(),
+                new.alarmEnabled,
+                "origine=$source; prima=${old.routineSteps.count { it.completed }}/${old.routineSteps.size}; " +
+                    "dopo=${new.routineSteps.count { it.completed }}/${new.routineSteps.size}"
+            )
+        }
     }
 }
 
@@ -140,6 +160,41 @@ private fun diagnosticEnvironment(context: Context): String {
     return "exact=$exact; idle=${powerManager.isDeviceIdleMode}; risparmio=${powerManager.isPowerSaveMode}; " +
         "batteriaSenzaLimiti=$ignoringBattery; batteria=$battery%; " +
         "nextAlarm=${alarmManager.nextAlarmClock?.triggerTime ?: -1L}"
+}
+
+private fun diagnosticAppVersion(context: Context): String = runCatching {
+    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.PackageInfoFlags.of(0)
+        )
+    } else {
+        @Suppress("DEPRECATION") context.packageManager.getPackageInfo(context.packageName, 0)
+    }
+    val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else {
+        @Suppress("DEPRECATION") info.versionCode.toLong()
+    }
+    "${info.versionName ?: "sconosciuta"} (code $code)"
+}.getOrDefault("sconosciuta")
+
+private fun diagnosticPermissions(context: Context): String {
+    fun granted(permission: String) = ContextCompat.checkSelfPermission(
+        context, permission
+    ) == PackageManager.PERMISSION_GRANTED
+    val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        granted(Manifest.permission.POST_NOTIFICATIONS)
+    val background = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+        granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    return "notifiche=$notifications; notificheAbilitate=${NotificationManagerCompat.from(context).areNotificationsEnabled()}; " +
+        "posizionePrecisa=${granted(Manifest.permission.ACCESS_FINE_LOCATION)}; posizioneBackground=$background"
+}
+
+private fun diagnosticSound(context: Context): String {
+    val notifications = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    return "filtroInterruzioni=${notifications.currentInterruptionFilter}; modalitaAudio=${audio.mode}; " +
+        "volumeSveglia=${audio.getStreamVolume(AudioManager.STREAM_ALARM)}/${audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)}; " +
+        "volumeNotifiche=${audio.getStreamVolume(AudioManager.STREAM_NOTIFICATION)}/${audio.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)}"
 }
 
 internal fun diagnosticAlarmState(hadPending: Boolean, pending: Boolean): String = when {
@@ -212,12 +267,18 @@ private fun recordAlarmEvent(
 ) {
     synchronized(alarmLogLock) {
         val prefs = alarmPrefs(context)
+        val now = System.currentTimeMillis()
         val entry = listOf(
-            System.currentTimeMillis().toString(), sanitize(action), sanitize(title),
+            now.toString(), sanitize(action), sanitize(title),
             time.toString(), isAlarm.toString(), sanitize(detail)
         ).joinToString(FIELD_SEPARATOR)
         val events = prefs.getString(ALARM_EVENTS_KEY, "").orEmpty()
-            .lineSequence().filter { it.isNotBlank() }.toMutableList()
+            .lineSequence()
+            .filter { raw ->
+                raw.isNotBlank() && raw.substringBefore(FIELD_SEPARATOR).toLongOrNull()
+                    ?.let { now - it <= ALARM_EVENT_RETENTION_MS } == true
+            }
+            .toMutableList()
             .apply { add(entry) }.takeLast(MAX_ALARM_EVENTS)
         prefs.edit().putString(ALARM_EVENTS_KEY, events.joinToString("\n")).commit()
     }
@@ -266,12 +327,19 @@ internal fun alarmDiagnosticReport(
         .sortedBy { it.reminderTime }
 
     return buildString {
+        appendLine("Diagnostica Faccio io")
+        appendLine("Versione app: ${diagnosticAppVersion(context)}")
         appendLine("Ora: ${formatted(now)}")
+        appendLine("Fuso orario: ${TimeZone.getDefault().id} (${TimeZone.getDefault().getDisplayName(false, TimeZone.SHORT, Locale.ITALIAN)})")
+        appendLine("Tempo dall’avvio telefono: ${SystemClock.elapsedRealtime() / 60_000L} minuti")
         appendLine("Prossima sveglia Android: ${formatted(alarmManager.nextAlarmClock?.triggerTime)}")
         appendLine("Ambiente: ${diagnosticEnvironment(context)}")
         appendLine("Versione Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
         appendLine("Produttore/modello: ${Build.MANUFACTURER} ${Build.MODEL}")
         appendLine("Ora automatica: ${runCatching { Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME) == 1 }.getOrDefault(false)}")
+        appendLine("Permessi: ${diagnosticPermissions(context)}")
+        appendLine("Audio/notifiche: ${diagnosticSound(context)}")
+        appendLine("Attività salvate: ${tasks.size}; completate=${tasks.count { it.completed }}; ricorrenti=${tasks.count { it.recurrence != "Mai" }}; quandoArrivo=${tasks.count { it.arrivalReminderId != null }}")
         appendLine()
         if (alarmTasks.isEmpty()) appendLine("Nessuna attività salvata come sveglia.")
         alarmTasks.forEach { task ->
@@ -284,6 +352,20 @@ internal fun alarmDiagnosticReport(
             appendLine("  Registro app: ${if (prefs.getLong("scheduled_time_$key", -1L) == time) "presente" else "assente"}")
             appendLine("  Collegamento Android: ${if (isReminderPending(context, task.title, time)) "presente" else "assente"}")
             appendLine("  ID: $key")
+            if (task.routineSteps.isNotEmpty()) {
+                appendLine("  Tappe routine: ${task.routineSteps.count { it.completed }}/${task.routineSteps.size} completate")
+                task.routineSteps.forEachIndexed { index, step ->
+                    appendLine("    ${index + 1}. ${if (step.completed) "completata" else "da fare"}")
+                }
+            }
+            appendLine()
+        }
+        val arrivalTasks = tasks.filter { it.arrivalReminderId != null }
+        if (arrivalTasks.isNotEmpty()) {
+            appendLine("Promemoria Quando arrivo (senza indirizzi o coordinate):")
+            arrivalTasks.forEach { task ->
+                appendLine("  ${task.title}: registrazione richiesta; allarme=${task.arrivalAlarmEnabled}; completata=${task.completed}")
+            }
             appendLine()
         }
         appendLine("Registro cronologico completo (più recente in alto):")

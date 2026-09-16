@@ -1596,6 +1596,15 @@ fun FaccioIoApp(
                 Row {
                     TextButton(
                         onClick = {
+                            alarmDiagnosticText = alarmDiagnosticReport(context, tasks)
+                            val shared = shareDiagnosticReport(context, alarmDiagnosticText)
+                            if (!shared) {
+                                Toast.makeText(context, "Impossibile condividere la diagnostica", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    ) { Text("Condividi") }
+                    TextButton(
+                        onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("Diagnostica sveglie Faccio io", alarmDiagnosticText))
                             Toast.makeText(context, "Registro diagnostico copiato", Toast.LENGTH_SHORT).show()

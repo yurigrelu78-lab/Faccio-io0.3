@@ -16,9 +16,21 @@ import com.google.android.gms.location.GeofencingEvent
 
 class GeofenceReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val event = GeofencingEvent.fromIntent(intent) ?: return
-        if (event.hasError() || event.geofenceTransition != Geofence.GEOFENCE_TRANSITION_ENTER) return
+        val event = GeofencingEvent.fromIntent(intent)
+        if (event == null) {
+            recordSystemDiagnosticEvent(context, "EVENTO GEOFENCE NON LEGGIBILE")
+            return
+        }
+        if (event.hasError()) {
+            recordSystemDiagnosticEvent(context, "ERRORE GEOFENCE", "codice=${event.errorCode}")
+            return
+        }
+        if (event.geofenceTransition != Geofence.GEOFENCE_TRANSITION_ENTER) {
+            recordSystemDiagnosticEvent(context, "TRANSIZIONE GEOFENCE IGNORATA", "tipo=${event.geofenceTransition}")
+            return
+        }
         val ids = event.triggeringGeofences?.map { it.requestId }.orEmpty()
+        recordSystemDiagnosticEvent(context, "ARRIVO RILEVATO", "geofence=${ids.size}")
         val tasks = loadTasks(context).toMutableList()
         ids.forEach { id ->
             val index = tasks.indexOfFirst { it.arrivalReminderId == id }
@@ -37,6 +49,8 @@ class GeofenceReceiver : BroadcastReceiver() {
                 }
                 tasks[index] = tasks[index].copy(arrivalReminderId = null)
                 removeArrivalGeofence(context, id)
+            } else {
+                recordSystemDiagnosticEvent(context, "GEOFENCE SENZA ATTIVITÀ", "id=${id.hashCode()}")
             }
         }
         saveTasks(context, tasks)

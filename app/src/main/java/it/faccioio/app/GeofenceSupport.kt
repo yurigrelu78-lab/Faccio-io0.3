@@ -36,7 +36,11 @@ internal fun ensureLocationPermissions(context: Context): Boolean {
 }
 
 internal fun registerArrivalGeofence(context: Context, id: String, title: String, latitude: Double, longitude: Double, result: (Boolean) -> Unit = {}) {
-    if (!ensureLocationPermissions(context)) { result(false); return }
+    if (!ensureLocationPermissions(context)) {
+        recordSystemDiagnosticEvent(context, "GEOFENCE NON REGISTRATO", "titolo=$title; motivo=permessi posizione")
+        result(false)
+        return
+    }
     val geofence = Geofence.Builder().setRequestId(id)
         .setCircularRegion(latitude, longitude, 200f)
         .setExpirationDuration(Geofence.NEVER_EXPIRE)
@@ -46,10 +50,21 @@ internal fun registerArrivalGeofence(context: Context, id: String, title: String
     val pending = PendingIntent.getBroadcast(context, id.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
     try {
         LocationServices.getGeofencingClient(context).addGeofences(request, pending)
-            .addOnSuccessListener { result(true) }.addOnFailureListener { result(false) }
-    } catch (_: SecurityException) { result(false) }
+            .addOnSuccessListener {
+                recordSystemDiagnosticEvent(context, "GEOFENCE REGISTRATO", "titolo=$title; raggio=200m")
+                result(true)
+            }.addOnFailureListener { error ->
+                recordSystemDiagnosticEvent(context, "GEOFENCE NON REGISTRATO", "titolo=$title; errore=${error.javaClass.simpleName}")
+                result(false)
+            }
+    } catch (error: SecurityException) {
+        recordSystemDiagnosticEvent(context, "GEOFENCE NON REGISTRATO", "titolo=$title; errore=SecurityException")
+        result(false)
+    }
 }
 
 internal fun removeArrivalGeofence(context: Context, id: String) {
     LocationServices.getGeofencingClient(context).removeGeofences(listOf(id))
+        .addOnSuccessListener { recordSystemDiagnosticEvent(context, "GEOFENCE RIMOSSO", "id=${id.hashCode()}") }
+        .addOnFailureListener { error -> recordSystemDiagnosticEvent(context, "RIMOZIONE GEOFENCE FALLITA", "id=${id.hashCode()}; errore=${error.javaClass.simpleName}") }
 }
