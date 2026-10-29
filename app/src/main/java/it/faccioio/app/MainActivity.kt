@@ -1760,6 +1760,9 @@ fun FaccioIoApp(
                             pendingPriority = suggestAppointmentPriority(parsed.title)
                             taskReminderMode = "Quando arrivo"
                             taskLocationQuery = parsed.location
+                            taskArrivalEnabled = true
+                            taskActivityTime = null
+                            taskReminderTime = null
                             taskResolvedPlace = null
                             taskPlaceMessage = "Ricerca del luogo in corso…"
                             pendingHasShoppingList = false
@@ -3504,9 +3507,9 @@ fun FaccioIoApp(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Avvisami quando arrivo", fontWeight = FontWeight.SemiBold)
-                                if (taskLocationQuery.isNotBlank() && taskActivityTime == null) {
+                                if (taskArrivalEnabled) {
                                     Text(
-                                        "Attivato automaticamente perché non hai indicato data e ora.",
+                                        "Avviso all’arrivo selezionato: sarà attivato al salvataggio.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = FaccioMutedText
                                     )
@@ -3928,11 +3931,10 @@ fun FaccioIoApp(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Avvisami quando arrivo", fontWeight = FontWeight.SemiBold)
                                 if (
-                                    editedLocationQuery.isNotBlank() &&
-                                    editedAppointmentTime == null
+                                    editedArrivalEnabled
                                 ) {
                                     Text(
-                                        "Attivato automaticamente perché non hai indicato data e ora.",
+                                        "Avviso all’arrivo selezionato: sarà confermato al salvataggio.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = FaccioMutedText
                                     )
