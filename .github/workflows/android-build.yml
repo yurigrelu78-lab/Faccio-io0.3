@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - codex/fix-widget-arrival-state
       - feature/sveglia-attivita
       - codex/luogo-arrivo-sveglia
       - codex/log-diagnostica-sveglie
